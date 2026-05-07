@@ -1,0 +1,259 @@
+name: nutanix-mcp-server
+type: server
+image: ghcr.io/jkmills/nutanix-mcp-server:latest
+description: MCP server for Nutanix Prism Central & Prism Element — manage VMs, clusters, networks, snapshots, tasks, and alerts via AI assistants.
+title: Nutanix Prism
+secrets:
+- name: nutanix-mcp-server.password
+  env: NUTANIX_PASSWORD
+env:
+- name: NUTANIX_HOST
+  value: "{{nutanix-mcp-server.host}}"
+- name: NUTANIX_PORT
+  value: "{{nutanix-mcp-server.port}}"
+- name: NUTANIX_USERNAME
+  value: "{{nutanix-mcp-server.username}}"
+- name: NUTANIX_VERIFY_SSL
+  value: "{{nutanix-mcp-server.verify_ssl}}"
+parameters:
+  type: object
+  properties:
+    host:
+      type: string
+    port:
+      type: string
+    username:
+      type: string
+    verify_ssl:
+      type: string
+  required:
+    - host
+    - username
+tools:
+- name: list_vms
+  description: List all VMs in Nutanix Prism Central with optional filtering
+  arguments:
+  - name: filter
+    type: string
+    desc: OData filter expression
+    optional: true
+  - name: limit
+    type: number
+    desc: Maximum number of VMs to return
+    optional: true
+- name: get_vm
+  description: Get detailed information about a specific VM by its UUID
+  arguments:
+  - name: vm_uuid
+    type: string
+    desc: The UUID of the VM
+- name: power_on_vm
+  description: Power on a VM
+  arguments:
+  - name: vm_uuid
+    type: string
+    desc: The UUID of the VM to power on
+- name: power_off_vm
+  description: Power off a VM (graceful ACPI shutdown or forced)
+  arguments:
+  - name: vm_uuid
+    type: string
+    desc: The UUID of the VM to power off
+  - name: force
+    type: boolean
+    desc: Force immediate power off instead of graceful shutdown
+    optional: true
+- name: create_vm
+  description: Create a new VM in a specified cluster
+  arguments:
+  - name: name
+    type: string
+    desc: Name for the new VM
+  - name: cluster_uuid
+    type: string
+    desc: UUID of the cluster to create the VM in
+  - name: num_sockets
+    type: number
+    desc: Number of CPU sockets
+    optional: true
+  - name: memory_size_mib
+    type: number
+    desc: Memory in MiB
+    optional: true
+- name: update_vm
+  description: Update VM configuration (name, CPU, memory)
+  arguments:
+  - name: vm_uuid
+    type: string
+    desc: UUID of the VM to update
+  - name: name
+    type: string
+    desc: New name for the VM
+    optional: true
+- name: delete_vm
+  description: Delete a VM permanently
+  arguments:
+  - name: vm_uuid
+    type: string
+    desc: UUID of the VM to delete
+- name: clone_vm
+  description: Clone an existing VM
+  arguments:
+  - name: vm_uuid
+    type: string
+    desc: UUID of the VM to clone
+  - name: name
+    type: string
+    desc: Name for the cloned VM
+    optional: true
+- name: list_clusters
+  description: List all Nutanix clusters registered with Prism Central
+- name: get_cluster
+  description: Get detailed information about a specific cluster
+  arguments:
+  - name: cluster_uuid
+    type: string
+    desc: The UUID of the cluster
+- name: list_hosts
+  description: List all hypervisor hosts
+  arguments:
+  - name: cluster_uuid
+    type: string
+    desc: Filter hosts by cluster UUID
+    optional: true
+- name: get_host
+  description: Get detailed information about a specific host
+  arguments:
+  - name: host_uuid
+    type: string
+    desc: The UUID of the host
+- name: list_storage_containers
+  description: List all storage containers
+- name: list_subnets
+  description: List all network subnets
+  arguments:
+  - name: filter
+    type: string
+    desc: OData filter expression
+    optional: true
+- name: get_subnet
+  description: Get detailed information about a specific subnet
+  arguments:
+  - name: subnet_uuid
+    type: string
+    desc: The UUID of the subnet
+- name: list_images
+  description: List all disk images in the image library
+  arguments:
+  - name: filter
+    type: string
+    desc: OData filter expression
+    optional: true
+- name: get_image
+  description: Get detailed information about a specific image
+  arguments:
+  - name: image_uuid
+    type: string
+    desc: The UUID of the image
+- name: list_categories
+  description: List all categories defined in Prism Central
+  arguments:
+  - name: filter
+    type: string
+    desc: OData filter expression
+    optional: true
+- name: get_category
+  description: Get detailed information about a specific category
+  arguments:
+  - name: category_id
+    type: string
+    desc: The extId of the category
+- name: list_tasks
+  description: List recent tasks from Prism Central
+  arguments:
+  - name: filter
+    type: string
+    desc: OData filter expression
+    optional: true
+  - name: limit
+    type: number
+    desc: Maximum number of tasks to return
+    optional: true
+- name: get_task
+  description: Get details of a specific task by its UUID
+  arguments:
+  - name: task_uuid
+    type: string
+    desc: The UUID of the task
+- name: snapshot_vm
+  description: Create a recovery point snapshot of a VM
+  arguments:
+  - name: vm_uuid
+    type: string
+    desc: UUID of the VM to snapshot
+  - name: name
+    type: string
+    desc: Name for the snapshot
+    optional: true
+- name: list_vm_snapshots
+  description: List recovery point snapshots for a VM
+  arguments:
+  - name: vm_uuid
+    type: string
+    desc: UUID of the VM
+- name: restore_vm_snapshot
+  description: Restore a VM from a recovery point snapshot
+  arguments:
+  - name: recovery_point_id
+    type: string
+    desc: UUID of the recovery point
+  - name: vm_uuid
+    type: string
+    desc: UUID of the VM to restore
+- name: list_alerts
+  description: List active alerts from Prism Central
+  arguments:
+  - name: filter
+    type: string
+    desc: OData filter expression
+    optional: true
+  - name: limit
+    type: number
+    desc: Maximum number of alerts to return
+    optional: true
+- name: get_alert
+  description: Get details of a specific alert
+  arguments:
+  - name: alert_uuid
+    type: string
+    desc: The UUID of the alert
+- name: acknowledge_alert
+  description: Acknowledge an alert
+  arguments:
+  - name: alert_uuid
+    type: string
+    desc: The UUID of the alert to acknowledge
+- name: assign_category
+  description: Assign a category to a VM
+  arguments:
+  - name: vm_uuid
+    type: string
+    desc: UUID of the VM
+  - name: category_fqname
+    type: string
+    desc: Fully qualified category name (key/value)
+- name: remove_category
+  description: Remove a category from a VM
+  arguments:
+  - name: vm_uuid
+    type: string
+    desc: UUID of the VM
+  - name: category_fqname
+    type: string
+    desc: Fully qualified category name to remove
+- name: list_entities_by_category
+  description: List VMs assigned to a specific category
+  arguments:
+  - name: category_fqname
+    type: string
+    desc: Fully qualified category name
