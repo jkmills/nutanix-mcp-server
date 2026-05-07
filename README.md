@@ -6,6 +6,7 @@ An MCP (Model Context Protocol) server that exposes Nutanix Prism Central and Pr
 
 - **Prism Central (v4 API)** — VM management, cluster inventory, host management
 - **Prism Element (v2 API)** — Direct cluster access for storage, disks, alerts, protection domains
+- **As-Built Reports** — Generate comprehensive Markdown documentation with Excalidraw diagrams at environment, cluster, or VM scope
 - **API version routing** — Prefers v4, falls back to v3/v2 when needed
 - **Async** — Non-blocking HTTP client using httpx
 
@@ -41,6 +42,15 @@ An MCP (Model Context Protocol) server that exposes Nutanix Prism Central and Pr
 | `pe_list_alerts` | Active/resolved alerts |
 | `pe_list_protection_domains` | Data protection policies |
 | `pe_list_snapshots` | Snapshots per protection domain |
+
+### As-Built Reports
+| Tool | Description |
+|------|-------------|
+| `generate_environment_report` | Full environment report — all clusters, hosts, storage, networking, VMs with topology diagram |
+| `generate_cluster_report` | Detailed report for one or more clusters — config, hosts, containers, subnets, VMs with architecture diagram |
+| `generate_vm_report` | Detailed report for specific VMs — compute, disks, NICs, categories, boot config with layout diagram |
+
+Reports output Markdown documentation and Excalidraw JSON diagrams for visual topology representation.
 
 ## Setup
 
