@@ -4,31 +4,16 @@ image: ghcr.io/jkmills/nutanix-mcp-server:latest
 description: MCP server for Nutanix Prism Central & Prism Element — manage VMs, clusters, networks, snapshots, tasks, and alerts via AI assistants.
 title: Nutanix Prism
 secrets:
+- name: nutanix-mcp-server.host
+  env: NUTANIX_HOST
+- name: nutanix-mcp-server.port
+  env: NUTANIX_PORT
+- name: nutanix-mcp-server.username
+  env: NUTANIX_USERNAME
 - name: nutanix-mcp-server.password
   env: NUTANIX_PASSWORD
-env:
-- name: NUTANIX_HOST
-  value: "{{nutanix-mcp-server.host}}"
-- name: NUTANIX_PORT
-  value: "{{nutanix-mcp-server.port}}"
-- name: NUTANIX_USERNAME
-  value: "{{nutanix-mcp-server.username}}"
-- name: NUTANIX_VERIFY_SSL
-  value: "{{nutanix-mcp-server.verify_ssl}}"
-parameters:
-  type: object
-  properties:
-    host:
-      type: string
-    port:
-      type: string
-    username:
-      type: string
-    verify_ssl:
-      type: string
-  required:
-    - host
-    - username
+- name: nutanix-mcp-server.verify_ssl
+  env: NUTANIX_VERIFY_SSL
 tools:
 - name: list_vms
   description: List all VMs in Nutanix Prism Central with optional filtering
