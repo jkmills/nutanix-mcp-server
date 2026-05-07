@@ -1,8 +1,10 @@
 """MCP Server implementation for Nutanix Prism Central & Element."""
 
 import asyncio
+import contextlib
 import json
 import sys
+from collections.abc import AsyncIterator
 from typing import Any
 
 from mcp.server import Server
@@ -135,8 +137,8 @@ def create_server(settings: Settings) -> tuple[Server, NutanixClient]:
     return server, client
 
 
-async def run_server() -> None:
-    """Run the MCP server."""
+async def run_stdio() -> None:
+    """Run the MCP server over stdio transport."""
     settings = get_settings()
 
     if not settings.has_credentials:
@@ -147,7 +149,7 @@ async def run_server() -> None:
         sys.exit(1)
 
     print(
-        f"Starting Nutanix MCP server for {settings.host}:{settings.port}",
+        f"Starting Nutanix MCP server (stdio) for {settings.host}:{settings.port}",
         file=sys.stderr,
     )
 
@@ -164,10 +166,57 @@ async def run_server() -> None:
         await client.close()
 
 
+def run_http(host: str = "0.0.0.0", port: int = 8000) -> None:
+    """Run the MCP server over streamable HTTP transport."""
+    import uvicorn
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+    from starlette.applications import Starlette
+    from starlette.routing import Mount
+
+    settings = get_settings()
+
+    if not settings.has_credentials:
+        print(
+            "Error: No credentials configured. Set NUTANIX_USERNAME and NUTANIX_PASSWORD.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    server, client = create_server(settings)
+    session_manager = StreamableHTTPSessionManager(app=server, json_response=True)
+
+    @contextlib.asynccontextmanager
+    async def lifespan(app: Starlette) -> AsyncIterator[None]:
+        async with session_manager.run():
+            yield
+        await client.close()
+
+    app = Starlette(
+        lifespan=lifespan,
+        routes=[Mount("/mcp", app=session_manager.handle_request)],
+    )
+
+    print(
+        f"Starting Nutanix MCP server (HTTP) at http://{host}:{port}/mcp",
+        file=sys.stderr,
+    )
+    uvicorn.run(app, host=host, port=port)
+
+
 def main() -> None:
-    """Entry point for the MCP server."""
+    """Entry point for the MCP server. Supports --http flag for HTTP transport."""
     try:
-        asyncio.run(run_server())
+        if "--http" in sys.argv:
+            host = "0.0.0.0"
+            port = 8000
+            for i, arg in enumerate(sys.argv):
+                if arg == "--host" and i + 1 < len(sys.argv):
+                    host = sys.argv[i + 1]
+                elif arg == "--port" and i + 1 < len(sys.argv):
+                    port = int(sys.argv[i + 1])
+            run_http(host=host, port=port)
+        else:
+            asyncio.run(run_stdio())
     except KeyboardInterrupt:
         print("\nShutting down...", file=sys.stderr)
     except Exception as e:
