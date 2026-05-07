@@ -101,14 +101,28 @@ python -m nutanix_mcp
 
 ## MCP Client Configuration
 
-### Claude Desktop / Claude Code
+This server uses **stdio transport** — it communicates via stdin/stdout. Each client
+configures a command to launch the server process.
 
-Add to your MCP settings:
+> **Tip:** Store credentials in environment variables or a `.env` file, never in config files committed to source control.
+
+---
+
+### Claude Code (CLI)
+
+Add the server to your project with the `claude mcp add` command:
+
+```bash
+claude mcp add nutanix -- python -m nutanix_mcp
+```
+
+Or manually create/edit `.mcp.json` in your project root:
 
 ```json
 {
   "mcpServers": {
     "nutanix": {
+      "type": "stdio",
       "command": "python",
       "args": ["-m", "nutanix_mcp"],
       "cwd": "/path/to/mcp/nutanix-mcp-server",
@@ -123,26 +137,155 @@ Add to your MCP settings:
 }
 ```
 
+For user-wide availability (all projects), add to `~/.claude.json` instead.
+
+---
+
+### Claude Desktop
+
+Edit the config file at:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux:** `~/.config/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "nutanix": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "nutanix_mcp"],
+      "cwd": "/path/to/mcp/nutanix-mcp-server",
+      "env": {
+        "NUTANIX_HOST": "your-prism-central.example.com",
+        "NUTANIX_USERNAME": "your-username",
+        "NUTANIX_PASSWORD": "your-password",
+        "NUTANIX_VERIFY_SSL": "true"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop fully after editing.
+
+---
+
 ### GitHub Copilot (VS Code)
 
-Add to `.vscode/mcp.json`:
+Add to `.vscode/mcp.json` in your workspace:
 
 ```json
 {
   "servers": {
     "nutanix": {
+      "type": "stdio",
       "command": "python",
       "args": ["-m", "nutanix_mcp"],
       "cwd": "${workspaceFolder}/mcp/nutanix-mcp-server",
       "env": {
         "NUTANIX_HOST": "your-prism-central.example.com",
         "NUTANIX_USERNAME": "your-username",
-        "NUTANIX_PASSWORD": "your-password"
+        "NUTANIX_PASSWORD": "your-password",
+        "NUTANIX_VERIFY_SSL": "true"
       }
     }
   }
 }
 ```
+
+---
+
+### OpenCode (sst/opencode)
+
+Add to `opencode.json` (or `opencode.jsonc`) in your project root:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "nutanix": {
+      "type": "local",
+      "command": ["python", "-m", "nutanix_mcp"],
+      "environment": {
+        "NUTANIX_HOST": "your-prism-central.example.com",
+        "NUTANIX_USERNAME": "your-username",
+        "NUTANIX_PASSWORD": "your-password",
+        "NUTANIX_VERIFY_SSL": "true"
+      },
+      "enabled": true
+    }
+  }
+}
+```
+
+Note: OpenCode uses `"command"` as an array and `"environment"` instead of `"env"`.
+
+---
+
+### Docker MCP Gateway
+
+The [Docker MCP Gateway](https://docs.docker.com/ai/mcp-catalog-and-toolkit/mcp-gateway/)
+can proxy this server inside a container. Two approaches:
+
+#### Option A: Run directly via Docker
+
+Build a container image and reference it in your MCP client config:
+
+```dockerfile
+FROM python:3.12-slim
+WORKDIR /app
+COPY mcp/nutanix-mcp-server/ .
+RUN pip install --no-cache-dir -e .
+CMD ["python", "-m", "nutanix_mcp"]
+```
+
+Then in any MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "nutanix": {
+      "type": "stdio",
+      "command": "docker",
+      "args": [
+        "run", "-i", "--rm",
+        "-e", "NUTANIX_HOST=your-prism-central.example.com",
+        "-e", "NUTANIX_USERNAME=your-username",
+        "-e", "NUTANIX_PASSWORD=your-password",
+        "-e", "NUTANIX_VERIFY_SSL=true",
+        "nutanix-mcp-server"
+      ]
+    }
+  }
+}
+```
+
+#### Option B: Register with Docker MCP Gateway
+
+If you have Docker Desktop with the MCP Toolkit:
+
+```bash
+docker mcp gateway run
+```
+
+Configure the gateway profile to include the nutanix server. The gateway then
+exposes all registered MCP servers as a single unified endpoint.
+
+In your AI client, point to the gateway:
+
+```json
+{
+  "mcpServers": {
+    "MCP_DOCKER": {
+      "command": "docker",
+      "args": ["mcp", "gateway", "run"]
+    }
+  }
+}
+```
+
+The gateway handles routing, lifecycle management, and credential isolation.
 
 ## API Version Strategy
 
