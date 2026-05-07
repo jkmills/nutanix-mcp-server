@@ -25,6 +25,7 @@ from nutanix_mcp.tools.prism_element import PE_HANDLERS
 from nutanix_mcp.tools.networking import NETWORKING_HANDLERS
 from nutanix_mcp.tools.task import TASK_HANDLERS
 from nutanix_mcp.tools.snapshot import SNAPSHOT_HANDLERS
+from nutanix_mcp.tools.alert import ALERT_HANDLERS
 from nutanix_mcp.resources import (
     RESOURCE_TEMPLATES,
     STATIC_RESOURCES,
@@ -40,6 +41,7 @@ ALL_HANDLERS: dict[str, Any] = {
     **NETWORKING_HANDLERS,
     **TASK_HANDLERS,
     **SNAPSHOT_HANDLERS,
+    **ALERT_HANDLERS,
 }
 
 
