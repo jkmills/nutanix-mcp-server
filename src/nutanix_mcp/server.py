@@ -84,8 +84,9 @@ def create_server(settings: Settings) -> tuple[Server, NutanixClient]:
             if e.status_code:
                 error_text += f" (HTTP {e.status_code})"
             return [TextContent(type="text", text=error_text)]
-        except Exception:
-            return [TextContent(type="text", text="An unexpected error occurred")]
+        except Exception as e:
+            error_type = type(e).__name__
+            return [TextContent(type="text", text=f"Error ({error_type}): {e}")]
 
     # ─── Resources ────────────────────────────────────────────────────────
 
