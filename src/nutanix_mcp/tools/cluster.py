@@ -59,8 +59,7 @@ CLUSTER_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of hosts to return (default: 50)",
-                    "default": 50,
+                    "description": "Maximum number of hosts to return. Omit to retrieve all (auto-paginates).",
                 },
             },
         },
@@ -97,8 +96,7 @@ CLUSTER_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of results (default: 50)",
-                    "default": 50,
+                    "description": "Maximum number of results. Omit to retrieve all (auto-paginates).",
                 },
             },
         },
@@ -115,7 +113,7 @@ async def handle_list_clusters(
     """List clusters using v4 clustermgmt API."""
     filter_expr = arguments.get("filter")
 
-    result = await client.v4_list(
+    result = await client.v4_list_all(
         namespace="clustermgmt",
         path="config/clusters",
         filter=filter_expr,
@@ -156,7 +154,7 @@ async def handle_list_hosts(
     """List hosts using v4 clustermgmt API."""
     cluster_uuid = arguments.get("cluster_uuid")
     filter_expr = arguments.get("filter")
-    limit = arguments.get("limit", 50)
+    limit = arguments.get("limit")
 
     # If cluster_uuid provided, filter to that cluster's hosts
     if cluster_uuid:
@@ -164,16 +162,18 @@ async def handle_list_hosts(
     else:
         path = "config/hosts"
 
-    result = await client.v4_list(
+    result = await client.v4_list_all(
         namespace="clustermgmt",
         path=path,
         filter=filter_expr,
-        top=limit,
+        max_results=limit,
     )
 
     hosts = result.get("data", [])
+    metadata = result.get("metadata", {})
     return {
         "count": len(hosts),
+        "truncated": metadata.get("truncated", False),
         "hosts": [
             {
                 "name": h.get("name"),
@@ -208,22 +208,24 @@ async def handle_list_storage_containers(
 ) -> dict[str, Any]:
     """List storage containers using v4 clustermgmt API."""
     cluster_uuid = arguments.get("cluster_uuid")
-    limit = arguments.get("limit", 50)
+    limit = arguments.get("limit")
 
     if cluster_uuid:
         path = f"config/clusters/{cluster_uuid}/storage-containers"
     else:
         path = "config/storage-containers"
 
-    result = await client.v4_list(
+    result = await client.v4_list_all(
         namespace="clustermgmt",
         path=path,
-        top=limit,
+        max_results=limit,
     )
 
     containers = result.get("data", [])
+    metadata = result.get("metadata", {})
     return {
         "count": len(containers),
+        "truncated": metadata.get("truncated", False),
         "storageContainers": [
             {
                 "name": sc.get("name"),

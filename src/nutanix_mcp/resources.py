@@ -97,27 +97,27 @@ async def resolve_resource(
         if resource_id:
             data = await client.v4_get(namespace="vmm", path=f"ahv/config/vms/{resource_id}")
         else:
-            data = await client.v4_list(namespace="vmm", path="ahv/config/vms", top=100)
+            data = await client.v4_list_all(namespace="vmm", path="ahv/config/vms")
     elif resource_type == "clusters":
         if resource_id:
             data = await client.v4_get(namespace="clustermgmt", path=f"config/clusters/{resource_id}")
         else:
-            data = await client.v4_list(namespace="clustermgmt", path="config/clusters")
+            data = await client.v4_list_all(namespace="clustermgmt", path="config/clusters")
     elif resource_type == "hosts":
         if resource_id:
             data = await client.v4_get(namespace="clustermgmt", path=f"config/hosts/{resource_id}")
         else:
-            data = await client.v4_list(namespace="clustermgmt", path="config/hosts", top=100)
+            data = await client.v4_list_all(namespace="clustermgmt", path="config/hosts")
     elif resource_type == "subnets":
         if resource_id:
             data = await client.v4_get(namespace="networking", path=f"config/subnets/{resource_id}")
         else:
-            data = await client.v4_list(namespace="networking", path="config/subnets", top=100)
+            data = await client.v4_list_all(namespace="networking", path="config/subnets")
     elif resource_type == "images":
         if resource_id:
             data = await client.v4_get(namespace="vmm", path=f"content/images/{resource_id}")
         else:
-            data = await client.v4_list(namespace="vmm", path="content/images", top=100)
+            data = await client.v4_list_all(namespace="vmm", path="content/images")
     else:
         data = {"error": f"Unknown resource type: {resource_type}"}
 

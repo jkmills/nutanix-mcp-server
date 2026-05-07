@@ -1,5 +1,6 @@
 """Nutanix Prism Central API client with v4/v3 version routing."""
 
+import asyncio
 import re
 from typing import Any, Optional
 
@@ -50,6 +51,10 @@ class NutanixClient:
     V3_VERSION = "v3"
     V2_VERSION = "v2.0"
 
+    # Retry settings for rate-limited (429) responses
+    MAX_RETRIES = 3
+    RETRY_BACKOFF_BASE = 2.0  # seconds; exponential: 2, 4, 8
+
     def __init__(self, settings: Settings):
         self.settings = settings
         self._client: Optional[httpx.AsyncClient] = None
@@ -98,23 +103,33 @@ class NutanixClient:
         client = await self._get_client()
         url = f"/{namespace}/{self.V4_VERSION}/{path}"
 
-        try:
-            response = await client.get(url, params=params)
-        except httpx.ConnectError as e:
-            raise NutanixAPIError(
-                f"Connection failed to {self.settings.host}:{self.settings.port}",
-                details=str(e),
-            )
-        except httpx.TimeoutException as e:
-            raise NutanixAPIError(
-                f"Request timed out after {self.settings.timeout}s",
-                details=str(e),
-            )
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                response = await client.get(url, params=params)
+            except httpx.ConnectError as e:
+                raise NutanixAPIError(
+                    f"Connection failed to {self.settings.host}:{self.settings.port}",
+                    details=str(e),
+                )
+            except httpx.TimeoutException as e:
+                raise NutanixAPIError(
+                    f"Request timed out after {self.settings.timeout}s",
+                    details=str(e),
+                )
 
-        if response.status_code >= 400:
-            self._handle_error(response)
+            if response.status_code == 429 and attempt < self.MAX_RETRIES:
+                wait = self.RETRY_BACKOFF_BASE * (2 ** attempt)
+                await asyncio.sleep(wait)
+                continue
 
-        return response.json()
+            if response.status_code >= 400:
+                self._handle_error(response)
+
+            return response.json()
+
+        # Should not reach here, but safety net
+        self._handle_error(response)
+        return {}  # unreachable
 
     async def v4_post(
         self,
@@ -127,23 +142,32 @@ class NutanixClient:
         client = await self._get_client()
         url = f"/{namespace}/{self.V4_VERSION}/{path}"
 
-        try:
-            response = await client.post(url, json=body, params=params)
-        except httpx.ConnectError as e:
-            raise NutanixAPIError(
-                f"Connection failed to {self.settings.host}:{self.settings.port}",
-                details=str(e),
-            )
-        except httpx.TimeoutException as e:
-            raise NutanixAPIError(
-                f"Request timed out after {self.settings.timeout}s",
-                details=str(e),
-            )
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                response = await client.post(url, json=body, params=params)
+            except httpx.ConnectError as e:
+                raise NutanixAPIError(
+                    f"Connection failed to {self.settings.host}:{self.settings.port}",
+                    details=str(e),
+                )
+            except httpx.TimeoutException as e:
+                raise NutanixAPIError(
+                    f"Request timed out after {self.settings.timeout}s",
+                    details=str(e),
+                )
 
-        if response.status_code >= 400:
-            self._handle_error(response)
+            if response.status_code == 429 and attempt < self.MAX_RETRIES:
+                wait = self.RETRY_BACKOFF_BASE * (2 ** attempt)
+                await asyncio.sleep(wait)
+                continue
 
-        return response.json()
+            if response.status_code >= 400:
+                self._handle_error(response)
+
+            return response.json()
+
+        self._handle_error(response)
+        return {}  # unreachable
 
     # Maximum allowed length for OData filter/orderby expressions
     MAX_FILTER_LENGTH = 500
@@ -205,6 +229,72 @@ class NutanixClient:
             params["$select"] = select
 
         return await self.v4_get(namespace, path, params=params)
+
+    # Default page size for paginated requests
+    DEFAULT_PAGE_SIZE = 50
+
+    # Hard ceiling to prevent runaway pagination
+    MAX_TOTAL_RESULTS = 5000
+
+    async def v4_list_all(
+        self,
+        namespace: str,
+        path: str,
+        filter: Optional[str] = None,
+        orderby: Optional[str] = None,
+        select: Optional[str] = None,
+        page_size: int = 50,
+        max_results: Optional[int] = None,
+    ) -> dict[str, Any]:
+        """Auto-paginate through all results for a v4 list endpoint.
+
+        Fetches pages of `page_size` until all results are collected or
+        `max_results` is reached. Returns a combined response with all data.
+
+        Args:
+            namespace: API namespace (e.g., 'vmm', 'clustermgmt')
+            path: Resource path
+            filter: OData $filter expression
+            orderby: OData $orderby expression
+            select: Fields to include in response
+            page_size: Number of results per page (default: 50)
+            max_results: Stop after this many total results (default: no limit)
+        """
+        ceiling = min(max_results, self.MAX_TOTAL_RESULTS) if max_results else self.MAX_TOTAL_RESULTS
+        all_data: list[Any] = []
+        skip = 0
+
+        while True:
+            result = await self.v4_list(
+                namespace=namespace,
+                path=path,
+                filter=filter,
+                orderby=orderby,
+                top=page_size,
+                skip=skip,
+                select=select,
+            )
+
+            page_data = result.get("data", [])
+            all_data.extend(page_data)
+
+            # Stop conditions: no more data, reached ceiling, or partial page
+            if not page_data or len(all_data) >= ceiling or len(page_data) < page_size:
+                break
+
+            skip += len(page_data)
+
+        # Trim to ceiling if we overshot
+        if len(all_data) > ceiling:
+            all_data = all_data[:ceiling]
+
+        return {
+            "data": all_data,
+            "metadata": {
+                "totalCount": len(all_data),
+                "truncated": len(all_data) >= ceiling,
+            },
+        }
 
     # ─── v3 API methods (fallback) ────────────────────────────────────────
 

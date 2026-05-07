@@ -25,8 +25,7 @@ VM_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of VMs to return (default: 50)",
-                    "default": 50,
+                    "description": "Maximum number of VMs to return. Omit to retrieve all (auto-paginates).",
                 },
             },
         },
@@ -129,19 +128,21 @@ async def handle_list_vms(
 ) -> dict[str, Any]:
     """List VMs using v4 vmm API."""
     filter_expr = arguments.get("filter")
-    limit = arguments.get("limit", 50)
+    limit = arguments.get("limit")
 
-    result = await client.v4_list(
+    result = await client.v4_list_all(
         namespace="vmm",
         path="ahv/config/vms",
         filter=filter_expr,
-        top=limit,
+        max_results=limit,
     )
 
     # Normalize response
     vms = result.get("data", [])
+    metadata = result.get("metadata", {})
     return {
         "count": len(vms),
+        "truncated": metadata.get("truncated", False),
         "vms": [
             {
                 "name": vm.get("name"),

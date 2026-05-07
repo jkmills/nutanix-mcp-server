@@ -25,8 +25,7 @@ NETWORKING_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of subnets to return (default: 50)",
-                    "default": 50,
+                    "description": "Maximum number of subnets to return. Omit to retrieve all (auto-paginates).",
                 },
             },
         },
@@ -66,8 +65,7 @@ NETWORKING_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of images to return (default: 50)",
-                    "default": 50,
+                    "description": "Maximum number of images to return. Omit to retrieve all (auto-paginates).",
                 },
             },
         },
@@ -104,8 +102,7 @@ NETWORKING_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of categories to return (default: 50)",
-                    "default": 50,
+                    "description": "Maximum number of categories to return. Omit to retrieve all (auto-paginates).",
                 },
             },
         },
@@ -138,18 +135,20 @@ async def handle_list_subnets(
 ) -> dict[str, Any]:
     """List subnets using v4 networking API."""
     filter_expr = arguments.get("filter")
-    limit = arguments.get("limit", 50)
+    limit = arguments.get("limit")
 
-    result = await client.v4_list(
+    result = await client.v4_list_all(
         namespace="networking",
         path="config/subnets",
         filter=filter_expr,
-        top=limit,
+        max_results=limit,
     )
 
     subnets = result.get("data", [])
+    metadata = result.get("metadata", {})
     return {
         "count": len(subnets),
+        "truncated": metadata.get("truncated", False),
         "subnets": [
             {
                 "name": s.get("name"),
@@ -169,9 +168,19 @@ def _extract_cidr(subnet: dict) -> str | None:
     ip_config = subnet.get("ipConfig")
     if not ip_config:
         return None
+    # ipConfig can be a list of configs or a single dict
+    if isinstance(ip_config, list):
+        ip_config = ip_config[0] if ip_config else None
+    if not ip_config or not isinstance(ip_config, dict):
+        return None
     ipv4 = ip_config.get("ipv4", {})
-    ip = ipv4.get("ipSubnet", {}).get("ip", {}).get("value")
-    prefix = ipv4.get("ipSubnet", {}).get("prefixLength")
+    if not ipv4:
+        return None
+    ip_subnet = ipv4.get("ipSubnet", {})
+    if not ip_subnet:
+        return None
+    ip = ip_subnet.get("ip", {}).get("value")
+    prefix = ip_subnet.get("prefixLength")
     if ip and prefix:
         return f"{ip}/{prefix}"
     return None
@@ -194,18 +203,20 @@ async def handle_list_images(
 ) -> dict[str, Any]:
     """List images using v4 vmm API."""
     filter_expr = arguments.get("filter")
-    limit = arguments.get("limit", 50)
+    limit = arguments.get("limit")
 
-    result = await client.v4_list(
+    result = await client.v4_list_all(
         namespace="vmm",
         path="content/images",
         filter=filter_expr,
-        top=limit,
+        max_results=limit,
     )
 
     images = result.get("data", [])
+    metadata = result.get("metadata", {})
     return {
         "count": len(images),
+        "truncated": metadata.get("truncated", False),
         "images": [
             {
                 "name": img.get("name"),
@@ -237,18 +248,20 @@ async def handle_list_categories(
 ) -> dict[str, Any]:
     """List categories using v4 prism API."""
     filter_expr = arguments.get("filter")
-    limit = arguments.get("limit", 50)
+    limit = arguments.get("limit")
 
-    result = await client.v4_list(
+    result = await client.v4_list_all(
         namespace="prism",
         path="config/categories",
         filter=filter_expr,
-        top=limit,
+        max_results=limit,
     )
 
     categories = result.get("data", [])
+    metadata = result.get("metadata", {})
     return {
         "count": len(categories),
+        "truncated": metadata.get("truncated", False),
         "categories": [
             {
                 "key": cat.get("key"),
