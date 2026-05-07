@@ -251,8 +251,28 @@ class NutanixClient:
 
     # ─── Prism Element v2 API methods ─────────────────────────────────────
 
+    def _validate_pe_host(self, pe_host: str) -> None:
+        """Validate that pe_host is allowed before sending credentials."""
+        import re
+
+        # Basic format validation: must look like an IP or hostname
+        if not re.match(r'^[a-zA-Z0-9._-]+$', pe_host):
+            raise ValidationError(
+                f"Invalid PE host format: contains disallowed characters",
+                status_code=None,
+            )
+
+        # Check against allowlist
+        if not self.settings.is_pe_host_allowed(pe_host):
+            raise ValidationError(
+                "PE host not in allowlist. Add it to NUTANIX_ALLOWED_PE_HOSTS.",
+                status_code=None,
+            )
+
     async def _get_pe_client(self, pe_host: str) -> httpx.AsyncClient:
         """Get or create an HTTP client for a Prism Element node."""
+        self._validate_pe_host(pe_host)
+
         if pe_host not in self._pe_clients or self._pe_clients[pe_host].is_closed:
             self._pe_clients[pe_host] = httpx.AsyncClient(
                 base_url=f"https://{pe_host}:{self.settings.port}/api/nutanix/{self.V2_VERSION}",
@@ -324,39 +344,46 @@ class NutanixClient:
     # ─── Error handling ───────────────────────────────────────────────────
 
     def _handle_error(self, response: httpx.Response) -> None:
-        """Raise appropriate exception based on HTTP status."""
+        """Raise appropriate exception based on HTTP status.
+
+        Provides sanitized error messages without leaking internal details.
+        """
         status = response.status_code
         try:
             error_data = response.json()
-            message = error_data.get("message", response.text)
-            details = error_data.get("details", None)
-            if isinstance(details, list):
-                details = "; ".join(str(d) for d in details)
+            # Only extract high-level message, not full response body
+            message = error_data.get("message", "")
+            if not message:
+                message = error_data.get("error", f"HTTP {status}")
+            # Truncate overly long messages that might contain stack traces
+            if len(message) > 200:
+                message = message[:200] + "..."
+            details = None
         except Exception:
-            message = response.text
+            message = f"HTTP {status}"
             details = None
 
         if status in (401, 403):
             raise AuthenticationError(
-                f"Authentication failed ({status}): {message}",
+                f"Authentication failed (HTTP {status})",
                 status_code=status,
-                details=details,
+                details=None,
             )
         elif status == 404:
             raise NotFoundError(
-                f"Not found: {message}",
+                f"Resource not found",
                 status_code=status,
-                details=details,
+                details=None,
             )
         elif status in (400, 422):
             raise ValidationError(
-                f"Validation error: {message}",
+                f"Request validation error: {message}",
                 status_code=status,
-                details=details,
+                details=None,
             )
         else:
             raise NutanixAPIError(
-                f"API error ({status}): {message}",
+                f"API request failed (HTTP {status})",
                 status_code=status,
                 details=details,
             )

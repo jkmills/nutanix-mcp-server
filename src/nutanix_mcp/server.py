@@ -61,11 +61,9 @@ def create_server(settings: Settings) -> tuple[Server, NutanixClient]:
             error_text = f"Error: {e.message}"
             if e.status_code:
                 error_text += f" (HTTP {e.status_code})"
-            if e.details:
-                error_text += f"\nDetails: {e.details}"
             return [TextContent(type="text", text=error_text)]
-        except Exception as e:
-            return [TextContent(type="text", text=f"Unexpected error: {e}")]
+        except Exception:
+            return [TextContent(type="text", text="An unexpected error occurred")]
 
     return server, client
 

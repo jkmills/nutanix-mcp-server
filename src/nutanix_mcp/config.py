@@ -1,6 +1,7 @@
 """Configuration management for the Nutanix MCP server."""
 
 import base64
+import re
 import sys
 from typing import Optional
 
@@ -23,14 +24,23 @@ class Settings(BaseSettings):
     )
 
     host: str = Field(
-        default="prism-central.example.com",
-        description="Prism Central hostname or IP",
+        description="Prism Central hostname or IP (required — set NUTANIX_HOST)",
     )
     port: int = Field(default=9440, description="Prism Central API port")
     username: Optional[str] = Field(default=None, description="Username for basic auth")
     password: Optional[str] = Field(default=None, description="Password for basic auth")
     verify_ssl: bool = Field(default=True, description="Verify SSL certificates")
     timeout: int = Field(default=30, description="Request timeout in seconds")
+
+    # Security: restrict which PE hosts can be targeted
+    allowed_pe_hosts: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Allowlist of Prism Element hosts (IPs or hostnames). "
+            "If empty, PE tools will only accept hosts discovered via list_hosts. "
+            "Set NUTANIX_ALLOWED_PE_HOSTS as comma-separated values."
+        ),
+    )
 
     @field_validator("host", mode="before")
     @classmethod
@@ -41,6 +51,13 @@ class Settings(BaseSettings):
                 "Set it as an environment variable or in a .env file."
             )
         return v
+
+    @field_validator("allowed_pe_hosts", mode="before")
+    @classmethod
+    def parse_pe_hosts(cls, v):
+        if isinstance(v, str):
+            return [h.strip() for h in v.split(",") if h.strip()]
+        return v or []
 
     @property
     def base_url(self) -> str:
@@ -62,6 +79,17 @@ class Settings(BaseSettings):
         raise ValueError(
             "No credentials configured. Set NUTANIX_USERNAME and NUTANIX_PASSWORD."
         )
+
+    def is_pe_host_allowed(self, pe_host: str) -> bool:
+        """Check if a PE host is in the allowlist.
+
+        Returns True if:
+        - The allowlist is empty (permissive mode — relies on network controls)
+        - The host matches an entry in the allowlist
+        """
+        if not self.allowed_pe_hosts:
+            return True
+        return pe_host in self.allowed_pe_hosts
 
 
 def get_settings() -> Settings:

@@ -56,7 +56,7 @@ Reports output Markdown documentation and Excalidraw JSON diagrams for visual to
 
 ### Prerequisites
 - Python 3.10+
-- Network access to Prism Central (`prism-central.example.com:9440`)
+- Network access to your Prism Central instance (port 9440)
 - Nutanix credentials with API access
 
 ### Install
@@ -80,7 +80,7 @@ cp .env.example .env
 ```
 
 ```env
-NUTANIX_HOST=prism-central.example.com
+NUTANIX_HOST=your-prism-central.example.com
 NUTANIX_PORT=9440
 NUTANIX_USERNAME=your-username
 NUTANIX_PASSWORD=your-password
@@ -113,7 +113,7 @@ Add to your MCP settings:
       "args": ["-m", "nutanix_mcp"],
       "cwd": "/path/to/mcp/nutanix-mcp-server",
       "env": {
-        "NUTANIX_HOST": "prism-central.example.com",
+        "NUTANIX_HOST": "your-prism-central.example.com",
         "NUTANIX_USERNAME": "your-username",
         "NUTANIX_PASSWORD": "your-password",
         "NUTANIX_VERIFY_SSL": "true"
@@ -135,7 +135,7 @@ Add to `.vscode/mcp.json`:
       "args": ["-m", "nutanix_mcp"],
       "cwd": "${workspaceFolder}/mcp/nutanix-mcp-server",
       "env": {
-        "NUTANIX_HOST": "prism-central.example.com",
+        "NUTANIX_HOST": "your-prism-central.example.com",
         "NUTANIX_USERNAME": "your-username",
         "NUTANIX_PASSWORD": "your-password"
       }
