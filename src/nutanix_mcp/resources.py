@@ -1,11 +1,11 @@
 """MCP Resource Templates for browseable URI-based access to Nutanix entities."""
 
+import json
 from typing import Any
 
 from mcp.types import Resource, ResourceTemplate, TextResourceContents
 
 from nutanix_mcp.client import NutanixClient
-
 
 # ─── Resource Template Definitions ────────────────────────────────────────────
 
@@ -80,12 +80,8 @@ STATIC_RESOURCES: list[Resource] = [
 
 # ─── Resource Handlers ────────────────────────────────────────────────────────
 
-import json
 
-
-async def resolve_resource(
-    client: NutanixClient, uri: str
-) -> list[TextResourceContents]:
+async def resolve_resource(client: NutanixClient, uri: str) -> list[TextResourceContents]:
     """Resolve a nutanix:// URI to resource contents."""
     parts = uri.replace("nutanix://", "").strip("/").split("/")
     resource_type = parts[0] if parts else ""

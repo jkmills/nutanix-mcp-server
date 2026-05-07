@@ -8,7 +8,6 @@ from mcp.types import (
     TextContent,
 )
 
-
 # ─── Prompt Definitions ───────────────────────────────────────────────────────
 
 PROMPTS: list[Prompt] = [
@@ -44,8 +43,7 @@ PROMPTS: list[Prompt] = [
     Prompt(
         name="nutanix_overview",
         description=(
-            "Get an overview of the connected Nutanix environment — "
-            "clusters, hosts, VMs, and storage summary."
+            "Get an overview of the connected Nutanix environment — clusters, hosts, VMs, and storage summary."
         ),
         arguments=[],
     ),
@@ -69,8 +67,7 @@ PROMPTS: list[Prompt] = [
             PromptArgument(
                 name="target",
                 description=(
-                    "Target identifier — cluster name/UUID or VM name/UUID. "
-                    "Leave empty for environment-level scope."
+                    "Target identifier — cluster name/UUID or VM name/UUID. Leave empty for environment-level scope."
                 ),
                 required=False,
             ),

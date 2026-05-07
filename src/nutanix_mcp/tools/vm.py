@@ -1,6 +1,6 @@
 """VM management tools using Nutanix v4 vmm namespace."""
 
-from typing import Any, Optional
+from typing import Any
 
 from nutanix_mcp.client import NutanixClient
 
@@ -18,10 +18,7 @@ VM_TOOLS: list[dict] = [
             "properties": {
                 "filter": {
                     "type": "string",
-                    "description": (
-                        "OData filter expression. Examples: "
-                        "\"name eq 'my-vm'\", \"powerState eq 'ON'\""
-                    ),
+                    "description": ("OData filter expression. Examples: \"name eq 'my-vm'\", \"powerState eq 'ON'\""),
                 },
                 "limit": {
                     "type": "integer",
@@ -63,9 +60,7 @@ VM_TOOLS: list[dict] = [
     },
     {
         "name": "power_off_vm",
-        "description": (
-            "Power off a virtual machine. Uses ACPI shutdown by default (guest-initiated)."
-        ),
+        "description": ("Power off a virtual machine. Uses ACPI shutdown by default (guest-initiated)."),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -84,9 +79,7 @@ VM_TOOLS: list[dict] = [
     },
     {
         "name": "create_vm",
-        "description": (
-            "Create a new virtual machine. Requires name, cluster UUID, and basic specs."
-        ),
+        "description": ("Create a new virtual machine. Requires name, cluster UUID, and basic specs."),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -199,9 +192,7 @@ VM_TOOLS: list[dict] = [
 # ─── Tool Handlers ────────────────────────────────────────────────────────────
 
 
-async def handle_list_vms(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_vms(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List VMs using v4 vmm API."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
@@ -233,9 +224,7 @@ async def handle_list_vms(
     }
 
 
-async def handle_get_vm(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_get_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get VM details using v4 vmm API."""
     vm_uuid = arguments["vm_uuid"]
     result = await client.v4_get(
@@ -245,9 +234,7 @@ async def handle_get_vm(
     return result.get("data", result)
 
 
-async def handle_power_on_vm(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_power_on_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Power on a VM using v4 vmm API."""
     vm_uuid = arguments["vm_uuid"]
     result = await client.v4_post(
@@ -258,9 +245,7 @@ async def handle_power_on_vm(
     return {"status": "power_on_initiated", "taskExtId": result.get("data", {}).get("extId")}
 
 
-async def handle_power_off_vm(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_power_off_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Power off a VM using v4 vmm API."""
     vm_uuid = arguments["vm_uuid"]
     force = arguments.get("force", False)
@@ -274,9 +259,7 @@ async def handle_power_off_vm(
     return {"status": f"{action}_initiated", "taskExtId": result.get("data", {}).get("extId")}
 
 
-async def handle_create_vm(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_create_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Create a VM using v4 vmm API."""
     name = arguments["name"]
     cluster_uuid = arguments["cluster_uuid"]
@@ -311,9 +294,7 @@ async def handle_create_vm(
     }
 
 
-async def handle_update_vm(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_update_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Update a VM using v4 vmm API with ETag concurrency control."""
     vm_uuid = arguments["vm_uuid"]
 
@@ -353,9 +334,7 @@ async def handle_update_vm(
     }
 
 
-async def handle_delete_vm(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_delete_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Delete a VM using v4 vmm API."""
     vm_uuid = arguments["vm_uuid"]
     confirm = arguments.get("confirm", False)
@@ -376,9 +355,7 @@ async def handle_delete_vm(
     }
 
 
-async def handle_clone_vm(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_clone_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Clone a VM using v4 vmm API."""
     vm_uuid = arguments["vm_uuid"]
     new_name = arguments["new_name"]

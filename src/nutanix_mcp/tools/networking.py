@@ -19,8 +19,7 @@ NETWORKING_TOOLS: list[dict] = [
                 "filter": {
                     "type": "string",
                     "description": (
-                        "OData filter expression. Examples: "
-                        "\"name eq 'production-vlan'\", \"vlanId eq 100\""
+                        'OData filter expression. Examples: "name eq \'production-vlan\'", "vlanId eq 100"'
                     ),
                 },
                 "limit": {
@@ -33,8 +32,7 @@ NETWORKING_TOOLS: list[dict] = [
     {
         "name": "get_subnet",
         "description": (
-            "Get detailed subnet configuration including IP pools, DHCP config, "
-            "and virtual switch assignment."
+            "Get detailed subnet configuration including IP pools, DHCP config, and virtual switch assignment."
         ),
         "inputSchema": {
             "type": "object",
@@ -59,8 +57,7 @@ NETWORKING_TOOLS: list[dict] = [
                 "filter": {
                     "type": "string",
                     "description": (
-                        "OData filter expression. Examples: "
-                        "\"name eq 'ubuntu-22.04'\", \"type eq 'DISK_IMAGE'\""
+                        "OData filter expression. Examples: \"name eq 'ubuntu-22.04'\", \"type eq 'DISK_IMAGE'\""
                     ),
                 },
                 "limit": {
@@ -130,9 +127,7 @@ NETWORKING_TOOLS: list[dict] = [
 # ─── Tool Handlers ────────────────────────────────────────────────────────────
 
 
-async def handle_list_subnets(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_subnets(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List subnets using v4 networking API."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
@@ -186,9 +181,7 @@ def _extract_cidr(subnet: dict) -> str | None:
     return None
 
 
-async def handle_get_subnet(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_get_subnet(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get subnet details using v4 networking API."""
     subnet_uuid = arguments["subnet_uuid"]
     result = await client.v4_get(
@@ -198,9 +191,7 @@ async def handle_get_subnet(
     return result.get("data", result)
 
 
-async def handle_list_images(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_images(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List images using v4 vmm API."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
@@ -231,9 +222,7 @@ async def handle_list_images(
     }
 
 
-async def handle_get_image(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_get_image(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get image details using v4 vmm API."""
     image_uuid = arguments["image_uuid"]
     result = await client.v4_get(
@@ -243,9 +232,7 @@ async def handle_get_image(
     return result.get("data", result)
 
 
-async def handle_list_categories(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_categories(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List categories using v4 prism API."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
@@ -275,9 +262,7 @@ async def handle_list_categories(
     }
 
 
-async def handle_get_category(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_get_category(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get category details using v4 prism API."""
     category_uuid = arguments["category_uuid"]
     result = await client.v4_get(

@@ -4,6 +4,7 @@ import asyncio
 import json
 import sys
 from typing import Any
+
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import (
@@ -16,23 +17,20 @@ from mcp.types import (
     Tool,
 )
 
-from nutanix_mcp.client import NutanixClient, NutanixAPIError
+from nutanix_mcp.client import NutanixAPIError, NutanixClient
 from nutanix_mcp.config import Settings, get_settings
-from nutanix_mcp.tools import get_all_tools
-from nutanix_mcp.tools.vm import VM_HANDLERS
-from nutanix_mcp.tools.cluster import CLUSTER_HANDLERS
-from nutanix_mcp.tools.prism_element import PE_HANDLERS
-from nutanix_mcp.tools.networking import NETWORKING_HANDLERS
-from nutanix_mcp.tools.task import TASK_HANDLERS
-from nutanix_mcp.tools.snapshot import SNAPSHOT_HANDLERS
-from nutanix_mcp.tools.alert import ALERT_HANDLERS
-from nutanix_mcp.tools.category import CATEGORY_HANDLERS
+from nutanix_mcp.prompts import PROMPT_HANDLERS, PROMPTS
 from nutanix_mcp.resources import (
     RESOURCE_TEMPLATES,
     STATIC_RESOURCES,
     resolve_resource,
 )
-from nutanix_mcp.prompts import PROMPTS, PROMPT_HANDLERS
+from nutanix_mcp.tools import get_all_tools
+from nutanix_mcp.tools.cluster import CLUSTER_HANDLERS
+from nutanix_mcp.tools.networking import NETWORKING_HANDLERS
+from nutanix_mcp.tools.prism_element import PE_HANDLERS
+from nutanix_mcp.tools.task import TASK_HANDLERS
+from nutanix_mcp.tools.vm import VM_HANDLERS
 
 # Merge all handler dispatch tables
 ALL_HANDLERS: dict[str, Any] = {
@@ -41,9 +39,6 @@ ALL_HANDLERS: dict[str, Any] = {
     **PE_HANDLERS,
     **NETWORKING_HANDLERS,
     **TASK_HANDLERS,
-    **SNAPSHOT_HANDLERS,
-    **ALERT_HANDLERS,
-    **CATEGORY_HANDLERS,
 }
 
 
@@ -72,10 +67,12 @@ def create_server(settings: Settings) -> tuple[Server, NutanixClient]:
         """Execute a tool and return the result."""
         handler = ALL_HANDLERS.get(name)
         if not handler:
-            return [TextContent(
-                type="text",
-                text=f"Error: Unknown tool '{name}'",
-            )]
+            return [
+                TextContent(
+                    type="text",
+                    text=f"Error: Unknown tool '{name}'",
+                )
+            ]
 
         try:
             result = await handler(client, arguments or {})
@@ -109,11 +106,13 @@ def create_server(settings: Settings) -> tuple[Server, NutanixClient]:
             error_text = f"Error: {e.message}"
             if e.status_code:
                 error_text += f" (HTTP {e.status_code})"
-            return [TextResourceContents(
-                uri=str(uri),
-                mimeType="application/json",
-                text=json.dumps({"error": error_text}),
-            )]
+            return [
+                TextResourceContents(
+                    uri=str(uri),
+                    mimeType="application/json",
+                    text=json.dumps({"error": error_text}),
+                )
+            ]
 
     # ─── Prompts ──────────────────────────────────────────────────────────
 
@@ -142,8 +141,7 @@ async def run_server() -> None:
 
     if not settings.has_credentials:
         print(
-            "Error: No credentials configured. "
-            "Set NUTANIX_USERNAME and NUTANIX_PASSWORD.",
+            "Error: No credentials configured. Set NUTANIX_USERNAME and NUTANIX_PASSWORD.",
             file=sys.stderr,
         )
         sys.exit(1)

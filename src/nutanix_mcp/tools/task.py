@@ -58,9 +58,7 @@ TASK_TOOLS: list[dict] = [
 # ─── Tool Handlers ────────────────────────────────────────────────────────────
 
 
-async def handle_list_tasks(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_tasks(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List tasks using v4 prism API."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit", 20)
@@ -92,9 +90,7 @@ async def handle_list_tasks(
     }
 
 
-async def handle_get_task(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_get_task(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get task details using v4 prism API."""
     task_uuid = arguments["task_uuid"]
     result = await client.v4_get(

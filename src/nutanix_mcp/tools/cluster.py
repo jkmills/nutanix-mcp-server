@@ -1,6 +1,6 @@
 """Cluster management tools using Nutanix v4 clustermgmt namespace."""
 
-from typing import Any, Optional
+from typing import Any
 
 from nutanix_mcp.client import NutanixClient
 
@@ -84,8 +84,7 @@ CLUSTER_TOOLS: list[dict] = [
     {
         "name": "list_storage_containers",
         "description": (
-            "List storage containers available across clusters. "
-            "Returns names, capacity, usage, and associated cluster."
+            "List storage containers available across clusters. Returns names, capacity, usage, and associated cluster."
         ),
         "inputSchema": {
             "type": "object",
@@ -107,9 +106,7 @@ CLUSTER_TOOLS: list[dict] = [
 # ─── Tool Handlers ────────────────────────────────────────────────────────────
 
 
-async def handle_list_clusters(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_clusters(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List clusters using v4 clustermgmt API."""
     filter_expr = arguments.get("filter")
 
@@ -136,9 +133,7 @@ async def handle_list_clusters(
     }
 
 
-async def handle_get_cluster(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_get_cluster(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get cluster details using v4 clustermgmt API."""
     cluster_uuid = arguments["cluster_uuid"]
     result = await client.v4_get(
@@ -148,9 +143,7 @@ async def handle_get_cluster(
     return result.get("data", result)
 
 
-async def handle_list_hosts(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_hosts(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List hosts using v4 clustermgmt API."""
     cluster_uuid = arguments.get("cluster_uuid")
     filter_expr = arguments.get("filter")
@@ -197,9 +190,7 @@ async def handle_list_hosts(
     }
 
 
-async def handle_get_host(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_get_host(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get host details using v4 clustermgmt API."""
     host_uuid = arguments["host_uuid"]
     result = await client.v4_get(
@@ -209,9 +200,7 @@ async def handle_get_host(
     return result.get("data", result)
 
 
-async def handle_list_storage_containers(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_storage_containers(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List storage containers using v4 clustermgmt API."""
     cluster_uuid = arguments.get("cluster_uuid")
     limit = arguments.get("limit")

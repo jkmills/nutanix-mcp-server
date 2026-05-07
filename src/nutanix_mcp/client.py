@@ -26,16 +26,19 @@ class NutanixAPIError(Exception):
 
 class AuthenticationError(NutanixAPIError):
     """Authentication failed."""
+
     pass
 
 
 class NotFoundError(NutanixAPIError):
     """Resource not found."""
+
     pass
 
 
 class ValidationError(NutanixAPIError):
     """Request validation failed."""
+
     pass
 
 
@@ -118,7 +121,7 @@ class NutanixClient:
                 )
 
             if response.status_code == 429 and attempt < self.MAX_RETRIES:
-                wait = self.RETRY_BACKOFF_BASE * (2 ** attempt)
+                wait = self.RETRY_BACKOFF_BASE * (2**attempt)
                 await asyncio.sleep(wait)
                 continue
 
@@ -157,7 +160,7 @@ class NutanixClient:
                 )
 
             if response.status_code == 429 and attempt < self.MAX_RETRIES:
-                wait = self.RETRY_BACKOFF_BASE * (2 ** attempt)
+                wait = self.RETRY_BACKOFF_BASE * (2**attempt)
                 await asyncio.sleep(wait)
                 continue
 
@@ -195,7 +198,7 @@ class NutanixClient:
                 )
 
             if response.status_code == 429 and attempt < self.MAX_RETRIES:
-                wait = self.RETRY_BACKOFF_BASE * (2 ** attempt)
+                wait = self.RETRY_BACKOFF_BASE * (2**attempt)
                 await asyncio.sleep(wait)
                 continue
 
@@ -231,7 +234,7 @@ class NutanixClient:
                 )
 
             if response.status_code == 429 and attempt < self.MAX_RETRIES:
-                wait = self.RETRY_BACKOFF_BASE * (2 ** attempt)
+                wait = self.RETRY_BACKOFF_BASE * (2**attempt)
                 await asyncio.sleep(wait)
                 continue
 
@@ -250,7 +253,7 @@ class NutanixClient:
     MAX_FILTER_LENGTH = 500
 
     # Characters that should never appear in OData filter expressions
-    _FILTER_DENY_PATTERN = re.compile(r'[;{}<>\\]|--|\*/|/\*')
+    _FILTER_DENY_PATTERN = re.compile(r"[;{}<>\\]|--|\*/|/\*")
 
     def _validate_odata_param(self, value: str, param_name: str) -> None:
         """Validate an OData query parameter for injection patterns.
@@ -448,9 +451,9 @@ class NutanixClient:
     def _validate_pe_host(self, pe_host: str) -> None:
         """Validate that pe_host is allowed before sending credentials."""
         # Basic format validation: must look like an IP or hostname
-        if not re.match(r'^[a-zA-Z0-9._-]+$', pe_host):
+        if not re.match(r"^[a-zA-Z0-9._-]+$", pe_host):
             raise ValidationError(
-                f"Invalid PE host format: contains disallowed characters",
+                "Invalid PE host format: contains disallowed characters",
                 status_code=None,
             )
 
@@ -563,7 +566,7 @@ class NutanixClient:
             )
         elif status == 404:
             raise NotFoundError(
-                f"Resource not found",
+                "Resource not found",
                 status_code=status,
                 details=None,
             )

@@ -1,7 +1,6 @@
 """Configuration management for the Nutanix MCP server."""
 
 import base64
-import re
 import sys
 from typing import Optional
 
@@ -46,10 +45,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_host(cls, v: Optional[str]) -> str:
         if not v:
-            raise ValueError(
-                "NUTANIX_HOST is required. "
-                "Set it as an environment variable or in a .env file."
-            )
+            raise ValueError("NUTANIX_HOST is required. Set it as an environment variable or in a .env file.")
         return v
 
     @field_validator("allowed_pe_hosts", mode="before")
@@ -72,13 +68,9 @@ class Settings(BaseSettings):
     def get_auth_header(self) -> dict[str, str]:
         """Build the authorization header."""
         if self.username and self.password:
-            credentials = base64.b64encode(
-                f"{self.username}:{self.password}".encode()
-            ).decode()
+            credentials = base64.b64encode(f"{self.username}:{self.password}".encode()).decode()
             return {"Authorization": f"Basic {credentials}"}
-        raise ValueError(
-            "No credentials configured. Set NUTANIX_USERNAME and NUTANIX_PASSWORD."
-        )
+        raise ValueError("No credentials configured. Set NUTANIX_USERNAME and NUTANIX_PASSWORD.")
 
     def is_pe_host_allowed(self, pe_host: str) -> bool:
         """Check if a PE host is in the allowlist.

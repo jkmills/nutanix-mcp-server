@@ -1,9 +1,10 @@
 """Tests for task tracking tools (Issue #1)."""
 
-import pytest
 from unittest.mock import AsyncMock
 
-from nutanix_mcp.tools.task import handle_list_tasks, handle_get_task
+import pytest
+
+from nutanix_mcp.tools.task import handle_get_task, handle_list_tasks
 
 
 @pytest.fixture
