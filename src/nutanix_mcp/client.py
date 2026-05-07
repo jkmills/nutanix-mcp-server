@@ -169,6 +169,83 @@ class NutanixClient:
         self._handle_error(response)
         return {}  # unreachable
 
+    async def v4_put(
+        self,
+        namespace: str,
+        path: str,
+        body: dict[str, Any],
+        headers: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
+        """PUT request against v4 API (used for updates with ETag)."""
+        client = await self._get_client()
+        url = f"/{namespace}/{self.V4_VERSION}/{path}"
+
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                response = await client.put(url, json=body, headers=headers)
+            except httpx.ConnectError as e:
+                raise NutanixAPIError(
+                    f"Connection failed to {self.settings.host}:{self.settings.port}",
+                    details=str(e),
+                )
+            except httpx.TimeoutException as e:
+                raise NutanixAPIError(
+                    f"Request timed out after {self.settings.timeout}s",
+                    details=str(e),
+                )
+
+            if response.status_code == 429 and attempt < self.MAX_RETRIES:
+                wait = self.RETRY_BACKOFF_BASE * (2 ** attempt)
+                await asyncio.sleep(wait)
+                continue
+
+            if response.status_code >= 400:
+                self._handle_error(response)
+
+            return response.json()
+
+        self._handle_error(response)
+        return {}  # unreachable
+
+    async def v4_delete(
+        self,
+        namespace: str,
+        path: str,
+    ) -> dict[str, Any]:
+        """DELETE request against v4 API."""
+        client = await self._get_client()
+        url = f"/{namespace}/{self.V4_VERSION}/{path}"
+
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                response = await client.delete(url)
+            except httpx.ConnectError as e:
+                raise NutanixAPIError(
+                    f"Connection failed to {self.settings.host}:{self.settings.port}",
+                    details=str(e),
+                )
+            except httpx.TimeoutException as e:
+                raise NutanixAPIError(
+                    f"Request timed out after {self.settings.timeout}s",
+                    details=str(e),
+                )
+
+            if response.status_code == 429 and attempt < self.MAX_RETRIES:
+                wait = self.RETRY_BACKOFF_BASE * (2 ** attempt)
+                await asyncio.sleep(wait)
+                continue
+
+            if response.status_code >= 400:
+                self._handle_error(response)
+
+            # DELETE may return 204 No Content
+            if response.status_code == 204:
+                return {}
+            return response.json()
+
+        self._handle_error(response)
+        return {}  # unreachable
+
     # Maximum allowed length for OData filter/orderby expressions
     MAX_FILTER_LENGTH = 500
 
