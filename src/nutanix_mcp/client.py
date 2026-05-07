@@ -1,5 +1,6 @@
 """Nutanix Prism Central API client with v4/v3 version routing."""
 
+import re
 from typing import Any, Optional
 
 import httpx
@@ -144,6 +145,29 @@ class NutanixClient:
 
         return response.json()
 
+    # Maximum allowed length for OData filter/orderby expressions
+    MAX_FILTER_LENGTH = 500
+
+    # Characters that should never appear in OData filter expressions
+    _FILTER_DENY_PATTERN = re.compile(r'[;{}<>\\]|--|\*/|/\*')
+
+    def _validate_odata_param(self, value: str, param_name: str) -> None:
+        """Validate an OData query parameter for injection patterns.
+
+        Raises ValidationError if the value contains suspicious characters
+        or exceeds the maximum allowed length.
+        """
+        if len(value) > self.MAX_FILTER_LENGTH:
+            raise ValidationError(
+                f"OData {param_name} exceeds maximum length ({self.MAX_FILTER_LENGTH} chars)",
+                status_code=None,
+            )
+        if self._FILTER_DENY_PATTERN.search(value):
+            raise ValidationError(
+                f"OData {param_name} contains disallowed characters",
+                status_code=None,
+            )
+
     async def v4_list(
         self,
         namespace: str,
@@ -167,14 +191,17 @@ class NutanixClient:
         """
         params: dict[str, str] = {}
         if filter:
+            self._validate_odata_param(filter, "$filter")
             params["$filter"] = filter
         if orderby:
+            self._validate_odata_param(orderby, "$orderby")
             params["$orderby"] = orderby
         if top is not None:
             params["$top"] = str(top)
         if skip is not None:
             params["$skip"] = str(skip)
         if select:
+            self._validate_odata_param(select, "$select")
             params["$select"] = select
 
         return await self.v4_get(namespace, path, params=params)
@@ -253,8 +280,6 @@ class NutanixClient:
 
     def _validate_pe_host(self, pe_host: str) -> None:
         """Validate that pe_host is allowed before sending credentials."""
-        import re
-
         # Basic format validation: must look like an IP or hostname
         if not re.match(r'^[a-zA-Z0-9._-]+$', pe_host):
             raise ValidationError(
