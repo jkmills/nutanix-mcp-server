@@ -12,11 +12,16 @@ VM_TOOLS: list[dict] = [
         "description": (
             "List ALL virtual machines on Nutanix (auto-paginates internally). "
             "Returns complete results in one call — no manual pagination needed. "
+            "Use 'cluster_name' to filter VMs to a specific cluster by name. "
             "Use 'filter' to narrow results via OData. Use 'limit' only if you want a subset."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
+                "cluster_name": {
+                    "type": "string",
+                    "description": "Filter VMs to a specific cluster by name (client-side filtering).",
+                },
                 "filter": {
                     "type": "string",
                     "description": "OData filter expression. Examples: \"name eq 'my-vm'\", \"powerState eq 'ON'\"",
@@ -197,22 +202,44 @@ async def handle_list_vms(client: NutanixClient, arguments: dict[str, Any]) -> d
     """List VMs using official Nutanix SDK. Handles pagination automatically."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
+    cluster_name = arguments.get("cluster_name")
 
     sdk = client.sdk
     kwargs: dict[str, Any] = {}
     if filter_expr:
         kwargs["_filter"] = filter_expr
 
-    if limit:
-        # Single page with limit
+    # Resolve cluster name to UUID for client-side filtering
+    cluster_uuid = None
+    if cluster_name:
+        clusters = await sdk.list_all(sdk.cluster_api.list_clusters)
+        for c in clusters:
+            if c.name and c.name.lower() == cluster_name.lower():
+                cluster_uuid = c.ext_id
+                break
+        if cluster_uuid is None:
+            return {
+                "error": f"Cluster '{cluster_name}' not found",
+                "availableClusters": [c.name for c in clusters if c.name],
+            }
+
+    if limit and not cluster_name:
+        # Single page with limit (skip when cluster filtering since we need all VMs)
         response = await sdk.call(sdk.vm_api.list_vms, _limit=limit, **kwargs)
         vms = response.data or []
     else:
         # Auto-paginate all results
         vms = await sdk.list_all(sdk.vm_api.list_vms, **kwargs)
 
+    # Client-side cluster filtering
+    if cluster_uuid:
+        vms = [vm for vm in vms if vm.cluster and vm.cluster.ext_id == cluster_uuid]
+        if limit:
+            vms = vms[:limit]
+
     return {
         "totalReturned": len(vms),
+        "cluster": cluster_name if cluster_name else "all",
         "note": "All matching VMs returned. No further pagination needed.",
         "vms": [
             {
