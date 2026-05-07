@@ -106,32 +106,18 @@ async def test_get_replication_status(mock_client):
 
 @pytest.mark.asyncio
 async def test_list_unprotected_vms(mock_client):
-    """Test listing VMs not in any protection domain."""
-    mock_client.pe_list.side_effect = [
-        # First call: all VMs
-        {
-            "entities": [
-                {"name": "web-01", "uuid": "vm-1", "power_state": "on", "host_uuid": "h1", "controller_vm": False},
-                {"name": "db-01", "uuid": "vm-2", "power_state": "on", "host_uuid": "h1", "controller_vm": False},
-                {"name": "app-01", "uuid": "vm-3", "power_state": "off", "host_uuid": "h2", "controller_vm": False},
-                {"name": "CVM", "uuid": "vm-cvm", "power_state": "on", "host_uuid": "h1", "controller_vm": True},
-            ]
-        },
-        # Second call: protection domains
-        {
-            "entities": [
-                {
-                    "name": "pd-prod",
-                    "vms": [{"vm_id": "vm-1"}, {"vm_id": "vm-2"}],
-                }
-            ]
-        },
-    ]
+    """Test listing VMs not in any protection domain using native endpoint."""
+    mock_client.pe_list.return_value = {
+        "entities": [
+            {"vm_name": "app-01", "vm_id": "vm-3", "power_state": "off", "host_uuid": "h2"},
+            {"vm_name": "test-01", "vm_id": "vm-4", "power_state": "on", "host_uuid": "h1"},
+        ]
+    }
 
     result = await handle_pe_list_unprotected_vms(mock_client, {"pe_host": "10.0.0.1"})
 
-    assert result["totalVms"] == 4
-    assert result["protectedVms"] == 2
-    assert result["unprotectedCount"] == 1  # vm-3 (app-01); CVM excluded
+    assert result["unprotectedCount"] == 2
     assert result["unprotectedVms"][0]["name"] == "app-01"
     assert result["unprotectedVms"][0]["uuid"] == "vm-3"
+    assert result["unprotectedVms"][1]["name"] == "test-01"
+    mock_client.pe_list.assert_called_once_with("10.0.0.1", "protection_domains/unprotected_vms")

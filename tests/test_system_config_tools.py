@@ -24,7 +24,7 @@ def mock_client():
 @pytest.mark.asyncio
 async def test_get_auth_config(mock_client):
     """Test retrieving authentication configuration."""
-    mock_client.pe_v1_get.return_value = {
+    mock_client.pe_get.return_value = {
         "authTypeList": ["LOCAL", "LDAP"],
         "directoryList": [
             {
@@ -46,7 +46,7 @@ async def test_get_auth_config(mock_client):
     assert result["directories"][0]["name"] == "corp-ad"
     assert result["directories"][0]["directoryType"] == "ACTIVE_DIRECTORY"
     assert result["directories"][0]["domain"] == "corp.example.com"
-    mock_client.pe_v1_get.assert_called_once_with("10.0.0.1", "authconfig")
+    mock_client.pe_get.assert_called_once_with("10.0.0.1", "authconfig")
 
 
 @pytest.mark.asyncio
@@ -67,7 +67,7 @@ async def test_get_smtp_config(mock_client):
     assert result["port"] == 587
     assert result["secureMode"] == "STARTTLS"
     assert result["fromEmailAddress"] == "nutanix@corp.example.com"
-    mock_client.pe_get.assert_called_once_with("10.0.0.1", "smtp_server")
+    mock_client.pe_get.assert_called_once_with("10.0.0.1", "cluster/smtp")
 
 
 @pytest.mark.asyncio
@@ -157,17 +157,14 @@ async def test_get_alert_email_config(mock_client):
 @pytest.mark.asyncio
 async def test_get_nfs_whitelists(mock_client):
     """Test retrieving NFS whitelist configuration."""
-    mock_client.pe_get.return_value = {
-        "nfs_whitelist_address": ["10.0.0.0/24", "192.168.1.0/24", "10.1.0.100"],
-        "name": "test-cluster",
-    }
+    mock_client.pe_get.return_value = ["10.0.0.0/24", "192.168.1.0/24", "10.1.0.100"]
 
     result = await handle_pe_get_nfs_whitelists(mock_client, {"pe_host": "10.0.0.1"})
 
     assert result["count"] == 3
     assert "10.0.0.0/24" in result["whitelists"]
     assert "192.168.1.0/24" in result["whitelists"]
-    mock_client.pe_get.assert_called_once_with("10.0.0.1", "cluster")
+    mock_client.pe_get.assert_called_once_with("10.0.0.1", "cluster/nfs_whitelist")
 
 
 @pytest.mark.asyncio

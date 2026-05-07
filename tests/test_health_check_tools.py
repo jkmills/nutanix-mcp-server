@@ -64,7 +64,7 @@ async def test_get_cluster_health(mock_client):
 @pytest.mark.asyncio
 async def test_list_health_checks(mock_client):
     """Test listing health check results."""
-    mock_client.pe_v1_get.return_value = {
+    mock_client.pe_list.return_value = {
         "entities": [
             {
                 "id": "hc-001",
@@ -96,4 +96,4 @@ async def test_list_health_checks(mock_client):
     assert result["healthChecks"][0]["severity"] == "WARNING"
     assert result["healthChecks"][0]["lastExecutionStatus"] == "PASS"
     assert result["healthChecks"][1]["checkType"] == "CAPACITY"
-    mock_client.pe_v1_get.assert_called_once_with("10.0.0.1", "health_checks")
+    mock_client.pe_list.assert_called_once_with("10.0.0.1", "health_checks")

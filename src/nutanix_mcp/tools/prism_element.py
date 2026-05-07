@@ -507,6 +507,92 @@ PE_TOOLS: list[dict] = [
             "required": ["pe_host"],
         },
     },
+    # ─── Additional Tools (AsBuiltReport parity) ─────────────────────────
+    {
+        "name": "pe_list_images",
+        "description": (
+            "List images (ISOs, disk images) on a Prism Element cluster. "
+            "Returns image name, type, state, size, and source URI."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "pe_host": {
+                    "type": "string",
+                    "description": "Prism Element CVM IP address or hostname",
+                },
+            },
+            "required": ["pe_host"],
+        },
+    },
+    {
+        "name": "pe_list_networks",
+        "description": (
+            "List networks (VLANs) on a Prism Element cluster. "
+            "Returns network name, VLAN ID, managed/unmanaged state, and IP pool configuration."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "pe_host": {
+                    "type": "string",
+                    "description": "Prism Element CVM IP address or hostname",
+                },
+            },
+            "required": ["pe_host"],
+        },
+    },
+    {
+        "name": "pe_get_metro_witness",
+        "description": (
+            "Get Metro Availability witness server configuration. "
+            "Returns witness address, status, and cluster association."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "pe_host": {
+                    "type": "string",
+                    "description": "Prism Element CVM IP address or hostname",
+                },
+            },
+            "required": ["pe_host"],
+        },
+    },
+    {
+        "name": "pe_list_dr_snapshots",
+        "description": (
+            "List disaster recovery snapshots across remote sites. "
+            "Returns snapshot IDs, PD names, remote site, and retention info."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "pe_host": {
+                    "type": "string",
+                    "description": "Prism Element CVM IP address or hostname",
+                },
+            },
+            "required": ["pe_host"],
+        },
+    },
+    {
+        "name": "pe_list_pd_replications",
+        "description": (
+            "List all active protection domain replications across the cluster. "
+            "Returns replication status, progress, bandwidth, and remote site for all PDs."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "pe_host": {
+                    "type": "string",
+                    "description": "Prism Element CVM IP address or hostname",
+                },
+            },
+            "required": ["pe_host"],
+        },
+    },
 ]
 
 
@@ -725,9 +811,9 @@ async def handle_pe_list_snapshots(client: NutanixClient, arguments: dict[str, A
 
 
 async def handle_pe_get_auth_config(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Get authentication configuration from Prism Element v1 API."""
+    """Get authentication configuration from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
-    result = await client.pe_v1_get(pe_host, "authconfig")
+    result = await client.pe_get(pe_host, "authconfig")
 
     directory_list = result.get("directoryList", [])
     return {
@@ -750,7 +836,7 @@ async def handle_pe_get_auth_config(client: NutanixClient, arguments: dict[str, 
 async def handle_pe_get_smtp_config(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get SMTP server configuration from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
-    result = await client.pe_get(pe_host, "smtp_server")
+    result = await client.pe_get(pe_host, "cluster/smtp")
 
     return {
         "address": result.get("address"),
@@ -834,11 +920,12 @@ async def handle_pe_get_alert_email_config(client: NutanixClient, arguments: dic
 async def handle_pe_get_nfs_whitelists(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get NFS whitelist configuration from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
-    result = await client.pe_get(pe_host, "cluster")
+    result = await client.pe_get(pe_host, "cluster/nfs_whitelist")
 
-    nfs_whitelist = result.get("nfs_whitelist_address", [])
+    # Endpoint returns a list directly or wrapped
+    nfs_whitelist = result if isinstance(result, list) else result.get("nfs_whitelist_address", result.get("whitelist", []))
     return {
-        "count": len(nfs_whitelist),
+        "count": len(nfs_whitelist) if isinstance(nfs_whitelist, list) else 0,
         "whitelists": nfs_whitelist,
     }
 
@@ -942,39 +1029,20 @@ async def handle_pe_list_unprotected_vms(client: NutanixClient, arguments: dict[
     """List VMs not in any protection domain from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
 
-    # Get all VMs
-    vm_result = await client.pe_list(pe_host, "vms")
-    all_vms = vm_result.get("entities", [])
-
-    # Get all protection domains to find protected VM IDs
-    pd_result = await client.pe_list(pe_host, "protection_domains")
-    pds = pd_result.get("entities", [])
-
-    protected_vm_ids: set[str] = set()
-    for pd in pds:
-        for vm in pd.get("vms", []):
-            vm_id = vm.get("vm_id")
-            if vm_id:
-                protected_vm_ids.add(vm_id)
-
-    # Filter to unprotected, non-CVM VMs
-    unprotected = [
-        vm for vm in all_vms
-        if vm.get("uuid") not in protected_vm_ids and not vm.get("controller_vm", False)
-    ]
+    # Use the native v2 endpoint for unprotected VMs
+    result = await client.pe_list(pe_host, "protection_domains/unprotected_vms")
+    entities = result.get("entities", [])
 
     return {
-        "totalVms": len(all_vms),
-        "protectedVms": len(protected_vm_ids),
-        "unprotectedCount": len(unprotected),
+        "unprotectedCount": len(entities),
         "unprotectedVms": [
             {
-                "name": vm.get("name"),
-                "uuid": vm.get("uuid"),
+                "name": vm.get("vm_name") or vm.get("name"),
+                "uuid": vm.get("vm_id") or vm.get("uuid"),
                 "powerState": vm.get("power_state"),
                 "hostUuid": vm.get("host_uuid"),
             }
-            for vm in unprotected
+            for vm in entities
         ],
     }
 
@@ -1158,9 +1226,9 @@ async def handle_pe_get_cluster_health(client: NutanixClient, arguments: dict[st
 
 
 async def handle_pe_list_health_checks(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List health check results from Prism Element v1 API."""
+    """List health check results from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
-    result = await client.pe_v1_get(pe_host, "health_checks")
+    result = await client.pe_list(pe_host, "health_checks")
     entities = result.get("entities", result.get("health_check_list", []))
 
     if isinstance(entities, list):
@@ -1181,6 +1249,129 @@ async def handle_pe_list_health_checks(client: NutanixClient, arguments: dict[st
             ],
         }
     return {"healthChecks": entities}
+
+
+# ─── Additional Handlers (AsBuiltReport parity) ──────────────────────────────
+
+
+async def handle_pe_list_images(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
+    """List images (ISOs, disk images) from Prism Element v2 API."""
+    pe_host = arguments["pe_host"]
+    result = await client.pe_list(pe_host, "images")
+    entities = result.get("entities", [])
+
+    return {
+        "count": len(entities),
+        "images": [
+            {
+                "name": img.get("name"),
+                "uuid": img.get("uuid"),
+                "imageType": img.get("image_type"),
+                "imageState": img.get("image_state"),
+                "sizeMb": round(img.get("vm_disk_size", 0) / (1024 * 1024), 1) if img.get("vm_disk_size") else None,
+                "sourceUri": img.get("source_uri"),
+                "storageContainerName": img.get("storage_container_name"),
+                "createdTimestamp": img.get("created_time_in_usecs"),
+                "updatedTimestamp": img.get("updated_time_in_usecs"),
+            }
+            for img in entities
+        ],
+    }
+
+
+async def handle_pe_list_networks(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
+    """List networks (VLANs) from Prism Element v2 API."""
+    pe_host = arguments["pe_host"]
+    result = await client.pe_list(pe_host, "networks")
+    entities = result.get("entities", [])
+
+    return {
+        "count": len(entities),
+        "networks": [
+            {
+                "name": net.get("name"),
+                "uuid": net.get("uuid"),
+                "vlanId": net.get("vlan_id"),
+                "networkType": net.get("network_type"),
+                "ipConfig": {
+                    "networkAddress": net.get("ip_config", {}).get("network_address") if net.get("ip_config") else None,
+                    "prefixLength": net.get("ip_config", {}).get("prefix_length") if net.get("ip_config") else None,
+                    "defaultGateway": net.get("ip_config", {}).get("default_gateway") if net.get("ip_config") else None,
+                    "dhcpServerAddress": net.get("ip_config", {}).get("dhcp_server_address") if net.get("ip_config") else None,
+                    "poolList": net.get("ip_config", {}).get("pool", []) if net.get("ip_config") else [],
+                } if net.get("ip_config") else None,
+            }
+            for net in entities
+        ],
+    }
+
+
+async def handle_pe_get_metro_witness(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Get Metro Availability witness server configuration from Prism Element v2 API."""
+    pe_host = arguments["pe_host"]
+    result = await client.pe_get(pe_host, "cluster/metro_witness")
+
+    # May return a witness object or empty dict if not configured
+    if not result or (isinstance(result, dict) and not result.get("witness_address")):
+        return {"configured": False, "witness": None}
+
+    return {
+        "configured": True,
+        "witness": {
+            "witnessAddress": result.get("witness_address"),
+            "clusterUuid": result.get("cluster_uuid"),
+            "witnessState": result.get("witness_state"),
+            "hasWitness": result.get("has_witness"),
+        },
+    }
+
+
+async def handle_pe_list_dr_snapshots(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
+    """List DR snapshots across remote sites from Prism Element v2 API."""
+    pe_host = arguments["pe_host"]
+    result = await client.pe_list(pe_host, "remote_sites/dr_snapshots")
+    entities = result.get("entities", [])
+
+    return {
+        "count": len(entities),
+        "drSnapshots": [
+            {
+                "snapshotId": snap.get("snapshot_id"),
+                "protectionDomainName": snap.get("protection_domain_name"),
+                "remoteSiteName": snap.get("remote_site_name"),
+                "consistencyGroupName": snap.get("consistency_group_name"),
+                "createdTimestamp": snap.get("created_time_in_usecs"),
+                "expirationTimestamp": snap.get("expiration_time_in_usecs"),
+                "sizeBytes": snap.get("size_in_bytes"),
+            }
+            for snap in entities
+        ],
+    }
+
+
+async def handle_pe_list_pd_replications(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
+    """List all active protection domain replications from Prism Element v2 API."""
+    pe_host = arguments["pe_host"]
+    result = await client.pe_list(pe_host, "protection_domains/replications")
+    entities = result.get("entities", [])
+
+    return {
+        "count": len(entities),
+        "replications": [
+            {
+                "id": r.get("id"),
+                "protectionDomainName": r.get("protection_domain_name"),
+                "remoteSiteName": r.get("remote_site_name"),
+                "snapshotId": r.get("snapshot_id"),
+                "status": r.get("replication_status"),
+                "completedPercentage": r.get("completed_percentage"),
+                "completedBytes": r.get("completed_bytes"),
+                "totalBytes": r.get("total_bytes"),
+                "replicatingVms": r.get("replicating_vms", []),
+            }
+            for r in entities
+        ],
+    }
 
 
 # ─── Handler Dispatch ─────────────────────────────────────────────────────────
@@ -1218,4 +1409,10 @@ PE_HANDLERS: dict[str, Any] = {
     # Issue #20: Health Checks
     "pe_get_cluster_health": handle_pe_get_cluster_health,
     "pe_list_health_checks": handle_pe_list_health_checks,
+    # AsBuiltReport parity
+    "pe_list_images": handle_pe_list_images,
+    "pe_list_networks": handle_pe_list_networks,
+    "pe_get_metro_witness": handle_pe_get_metro_witness,
+    "pe_list_dr_snapshots": handle_pe_list_dr_snapshots,
+    "pe_list_pd_replications": handle_pe_list_pd_replications,
 }

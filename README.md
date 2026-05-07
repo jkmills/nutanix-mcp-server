@@ -1,5 +1,8 @@
 # Nutanix MCP Server
 
+> [!WARNING]
+> **Use at your own risk.** MCP servers grant AI models the ability to execute actions against your infrastructure. AI-driven management of production environments carries inherent risk — models can misinterpret intent, hallucinate parameters, or trigger destructive operations. This software is provided "as is" without warranty of any kind. The authors accept no liability for data loss, downtime, or any damages arising from use of this tool. Always review AI-proposed actions before execution and maintain proper backups.
+
 An MCP (Model Context Protocol) server that exposes Nutanix Prism Central and Prism Element APIs as tools for AI assistants like GitHub Copilot, Claude, and others.
 
 ## Features
