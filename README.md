@@ -7,63 +7,129 @@ An MCP (Model Context Protocol) server that exposes Nutanix Prism Central and Pr
 
 ## Features
 
-- **Prism Central (v4 API)** — VM management, cluster inventory, host management
-- **Prism Element (v2 API)** — Direct cluster access for storage, disks, alerts, protection domains
-- **As-Built Reports** — Generate comprehensive Markdown documentation with Excalidraw diagrams at environment, cluster, or VM scope
+- **65 tools** — Full coverage of Prism Central v4 and Prism Element v2 APIs
+- **Prism Central (v4 API)** — VM lifecycle, snapshots, clusters, hosts, networking, categories, alerts, tasks
+- **Prism Element (v2 API)** — Direct cluster access for storage, disks, data protection, system config, health checks
+- **AsBuilt Reports** — Generate comprehensive HTML reports with interactive TOC, Mermaid topology diagrams, and print-to-PDF support
 - **API version routing** — Prefers v4, falls back to v3/v2 when needed
 - **Async** — Non-blocking HTTP client using httpx
 
-## Available Tools
+## Available Tools (65)
 
-### VM Management (Prism Central v4)
+### VM Management — Prism Central v4
 | Tool | Description |
 |------|-------------|
-| `list_vms` | List VMs with OData filtering |
-| `get_vm` | Get full VM configuration by UUID |
+| `list_vms` | List all VMs with OData filtering (auto-paginates) |
+| `get_vm` | Get full VM config — CPU, memory, disks, NICs |
 | `power_on_vm` | Power on a VM |
-| `power_off_vm` | Power off (ACPI or force) |
-| `create_vm` | Create a new VM |
+| `power_off_vm` | Power off a VM (ACPI guest shutdown or force) |
+| `create_vm` | Create a new VM with name, cluster, CPU, memory, disk |
+| `update_vm` | Update VM config — CPU, memory, name, description |
+| `delete_vm` | Permanently delete a VM (requires confirmation) |
+| `clone_vm` | Clone a VM with a new name |
 
-### Cluster Management (Prism Central v4)
+### VM Snapshots — Prism Central v4
 | Tool | Description |
 |------|-------------|
-| `list_clusters` | List registered clusters |
-| `get_cluster` | Get cluster details |
-| `list_hosts` | List hypervisor hosts |
-| `get_host` | Get host details |
-| `list_storage_containers` | List storage containers |
+| `snapshot_vm` | Create an on-demand recovery point of a VM |
+| `list_vm_snapshots` | List all recovery points for a VM |
+| `restore_vm_snapshot` | Restore a VM to a previous recovery point |
 
-### Networking & Images (Prism Central v4)
+### Cluster & Host Management — Prism Central v4
+| Tool | Description |
+|------|-------------|
+| `list_clusters` | List all registered Nutanix clusters |
+| `get_cluster` | Get cluster config, network, storage, and health details |
+| `list_hosts` | List all hypervisor hosts across clusters |
+| `get_host` | Get host hardware specs, hypervisor info, and resource usage |
+| `list_storage_containers` | List storage containers across clusters |
+
+### Networking & Images — Prism Central v4
 | Tool | Description |
 |------|-------------|
 | `list_subnets` | List subnets/VLANs with CIDR, VLAN ID, and cluster |
 | `get_subnet` | Get subnet details including IP pools and DHCP config |
 | `list_images` | List disk images (ISOs, QCOW2) in the image library |
-| `get_image` | Get image details — size, type, source |
-| `list_categories` | List category keys and values for resource tagging |
-| `get_category` | Get all values for a category key |
+| `get_image` | Get image details — size, type, source, cluster placement |
+| `list_categories` | List all category keys and values |
+| `get_category` | Get all values for a specific category key |
 
-### Prism Element (v2 — direct cluster access)
+### Categories & Tagging — Prism Central v4
 | Tool | Description |
 |------|-------------|
-| `pe_get_cluster_info` | Cluster health, version, and capacity |
-| `pe_list_vms` | VMs on a specific PE cluster |
-| `pe_list_hosts` | Hosts with hardware details |
-| `pe_list_containers` | Storage containers with replication info |
+| `assign_category` | Tag a VM with a category key:value pair |
+| `remove_category` | Remove a category assignment from a VM |
+| `list_entities_by_category` | Find all VMs tagged with a specific category |
+
+### Alerts & Tasks — Prism Central v4
+| Tool | Description |
+|------|-------------|
+| `list_alerts` | List all alerts from Prism Central |
+| `get_alert` | Get full alert details — entities, resolution guidance |
+| `acknowledge_alert` | Acknowledge or resolve an alert |
+| `list_tasks` | List recent async tasks with status |
+| `get_task` | Get task completion status and error details |
+
+### Prism Element — Cluster & Hosts (v2 direct access)
+| Tool | Description |
+|------|-------------|
+| `pe_get_cluster_info` | Cluster AOS version, capacity, and health |
+| `pe_list_hosts` | Hosts with hardware specs and CVM info |
+| `pe_get_host_disks` | Per-host physical disk inventory (model, serial, firmware, tier) |
+| `pe_get_host_nics` | Per-host NIC details — speed, link state, MAC, LLDP |
+| `pe_list_cvms` | Controller VMs — IP, memory, power state |
+| `pe_get_cluster_health` | Data resiliency and fault tolerance status |
+| `pe_list_health_checks` | NCC-style health check results |
+| `pe_list_alerts` | Active/resolved alerts on a PE cluster |
+
+### Prism Element — Storage
+| Tool | Description |
+|------|-------------|
+| `pe_list_containers` | Storage containers with replication factor and policies |
 | `pe_list_storage_pools` | Storage pools and disk composition |
-| `pe_list_disks` | Physical disk inventory and status |
-| `pe_list_alerts` | Active/resolved alerts |
-| `pe_list_protection_domains` | Data protection policies |
-| `pe_list_snapshots` | Snapshots per protection domain |
+| `pe_list_disks` | Physical disk inventory — type, status, capacity |
+| `pe_list_volume_groups` | Volume groups — iSCSI IQN, attached VMs, CHAP |
+| `pe_get_volume_group` | Detailed volume group config |
 
-### As-Built Reports
+### Prism Element — VMs, Networks & Images
 | Tool | Description |
 |------|-------------|
-| `generate_environment_report` | Full environment report — all clusters, hosts, storage, networking, VMs with topology diagram |
-| `generate_cluster_report` | Detailed report for one or more clusters — config, hosts, containers, subnets, VMs with architecture diagram |
-| `generate_vm_report` | Detailed report for specific VMs — compute, disks, NICs, categories, boot config with layout diagram |
+| `pe_list_vms` | VMs on a specific cluster |
+| `pe_list_networks` | VLANs — managed/unmanaged, IP pool config |
+| `pe_list_images` | Disk images and ISOs on a cluster |
 
-Reports output Markdown documentation and Excalidraw JSON diagrams for visual topology representation.
+### Prism Element — Data Protection
+| Tool | Description |
+|------|-------------|
+| `pe_list_protection_domains` | Protection domains — schedules, replication state |
+| `pe_get_protection_domain` | Detailed PD config — consistency groups, VMs, schedules |
+| `pe_list_snapshots` | Snapshots for a protection domain |
+| `pe_list_remote_sites` | DR partner clusters — addresses, capabilities |
+| `pe_get_replication_status` | Active replication progress, lag, and bandwidth |
+| `pe_list_dr_snapshots` | DR snapshots across remote sites |
+| `pe_list_pd_replications` | All active PD replications cluster-wide |
+| `pe_list_unprotected_vms` | VMs not in any protection domain (compliance gaps) |
+
+### Prism Element — System Configuration
+| Tool | Description |
+|------|-------------|
+| `pe_get_auth_config` | Auth types, directory services (LDAP/AD) |
+| `pe_get_smtp_config` | SMTP relay server configuration |
+| `pe_get_snmp_config` | SNMP traps, users, and community strings |
+| `pe_get_syslog_config` | Remote syslog targets and severity levels |
+| `pe_get_alert_email_config` | Alert email recipients and notification rules |
+| `pe_get_nfs_whitelists` | Global NFS export ACLs |
+| `pe_get_licensing_info` | License type (Starter/Pro/Ultimate) and features |
+| `pe_get_metro_witness` | Metro Availability witness server config |
+
+### AsBuilt Reports
+| Tool | Description |
+|------|-------------|
+| `generate_asbuilt` | Generate a comprehensive infrastructure report from a PE cluster — overview, system config, hosts, storage, VMs, networks, data protection, alerts, health checks, and Mermaid topology diagram |
+| `export_asbuilt_html` | Convert AsBuilt Markdown to self-contained HTML with interactive TOC sidebar and print-optimized CSS for PDF export |
+| `get_project_architecture` | Get the Nutanix MCP Server project architecture documentation |
+
+AsBuilt reports include 9 sections: overview, system, hosts (with per-host disk inventory), VMs, networks, storage, data protection (with remote sites and unprotected VM detection), alerts, and health checks. Hypervisor names are mapped automatically (kKvm → AHV). The HTML export features an interactive table of contents with scroll-spy that is hidden when printing to PDF.
 
 ### MCP Resources (URI-based browsing)
 
