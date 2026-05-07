@@ -30,6 +30,16 @@ An MCP (Model Context Protocol) server that exposes Nutanix Prism Central and Pr
 | `get_host` | Get host details |
 | `list_storage_containers` | List storage containers |
 
+### Networking & Images (Prism Central v4)
+| Tool | Description |
+|------|-------------|
+| `list_subnets` | List subnets/VLANs with CIDR, VLAN ID, and cluster |
+| `get_subnet` | Get subnet details including IP pools and DHCP config |
+| `list_images` | List disk images (ISOs, QCOW2) in the image library |
+| `get_image` | Get image details — size, type, source |
+| `list_categories` | List category keys and values for resource tagging |
+| `get_category` | Get all values for a category key |
+
 ### Prism Element (v2 — direct cluster access)
 | Tool | Description |
 |------|-------------|
@@ -51,6 +61,28 @@ An MCP (Model Context Protocol) server that exposes Nutanix Prism Central and Pr
 | `generate_vm_report` | Detailed report for specific VMs — compute, disks, NICs, categories, boot config with layout diagram |
 
 Reports output Markdown documentation and Excalidraw JSON diagrams for visual topology representation.
+
+### MCP Resources (URI-based browsing)
+
+The server exposes resources via `nutanix://` URIs, allowing LLMs to browse
+entities without explicit tool calls:
+
+| URI Pattern | Description |
+|-------------|-------------|
+| `nutanix://vms` | Browse all VMs |
+| `nutanix://vms/{uuid}` | Get a specific VM |
+| `nutanix://clusters` | Browse all clusters |
+| `nutanix://clusters/{uuid}` | Get a specific cluster |
+| `nutanix://hosts/{uuid}` | Get a specific host |
+| `nutanix://subnets/{uuid}` | Get a specific subnet |
+| `nutanix://images/{uuid}` | Get a specific image |
+
+### MCP Prompts
+
+| Prompt | Description |
+|--------|-------------|
+| `set_credentials` | Interactive credential configuration (for clients without env var support) |
+| `nutanix_overview` | Guided environment overview — clusters, hosts, storage, alerts |
 
 ## Setup
 

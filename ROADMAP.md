@@ -115,12 +115,12 @@ Potential tools to add to the Nutanix MCP server, organized by API namespace.
 ## Priority Suggestions
 
 **High value, low effort (next batch):**
-1. `list_subnets` / `get_subnet` — essential for VM creation workflows
-2. `list_images` — needed to create VMs from templates/images
+1. ~~`list_subnets` / `get_subnet` — essential for VM creation workflows~~ ✅ Implemented
+2. ~~`list_images` — needed to create VMs from templates/images~~ ✅ Implemented
 3. `list_tasks` / `get_task` — track async operations
 4. `list_alerts` — monitoring and incident response
 
 **High value, moderate effort:**
 5. `snapshot_vm` / `list_vm_snapshots` — data protection workflows
 6. `update_vm` — modify running infrastructure
-7. `list_categories` / `assign_category` — resource organization
+7. ~~`list_categories` / `assign_category` — resource organization~~ ✅ `list_categories`/`get_category` implemented
