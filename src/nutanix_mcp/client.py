@@ -481,6 +481,55 @@ class NutanixClient:
             )
         return self._pe_clients[pe_host]
 
+    async def pe_v1_get(
+        self,
+        pe_host: str,
+        path: str,
+        params: Optional[dict[str, str]] = None,
+    ) -> dict[str, Any]:
+        """GET request against a Prism Element v1 API.
+
+        Args:
+            pe_host: Prism Element CVM IP or hostname
+            path: Resource path (e.g., 'authconfig', 'license')
+        """
+        self._validate_pe_host(pe_host)
+        client = await self._get_client_for_pe_v1(pe_host)
+
+        try:
+            response = await client.get(f"/{path}", params=params)
+        except httpx.ConnectError as e:
+            raise NutanixAPIError(
+                f"Connection failed to PE host {pe_host}",
+                details=str(e),
+            )
+        except httpx.TimeoutException as e:
+            raise NutanixAPIError(
+                f"Request to PE {pe_host} timed out after {self.settings.timeout}s",
+                details=str(e),
+            )
+
+        if response.status_code >= 400:
+            self._handle_error(response)
+
+        return response.json()
+
+    async def _get_client_for_pe_v1(self, pe_host: str) -> httpx.AsyncClient:
+        """Get or create an HTTP client for Prism Element v1 API."""
+        cache_key = f"{pe_host}_v1"
+        if cache_key not in self._pe_clients or self._pe_clients[cache_key].is_closed:
+            self._pe_clients[cache_key] = httpx.AsyncClient(
+                base_url=f"https://{pe_host}:{self.settings.port}/api/nutanix/v1",
+                headers={
+                    **self.settings.get_auth_header(),
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
+                verify=self.settings.verify_ssl,
+                timeout=httpx.Timeout(self.settings.timeout),
+            )
+        return self._pe_clients[cache_key]
+
     async def pe_get(
         self,
         pe_host: str,
