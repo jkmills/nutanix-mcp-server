@@ -5,8 +5,8 @@ WORKDIR /app
 # Install uv for fast dependency resolution
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-# Copy project files
-COPY pyproject.toml uv.lock* ./
+# Copy project files (including README.md)
+COPY pyproject.toml uv.lock* README.md LICENSE ./
 COPY src/ src/
 
 # Install dependencies
