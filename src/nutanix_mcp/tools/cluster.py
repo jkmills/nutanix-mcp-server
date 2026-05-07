@@ -171,23 +171,29 @@ async def handle_list_hosts(
 
     hosts = result.get("data", [])
     metadata = result.get("metadata", {})
+
+    def _extract_host(h: dict) -> dict:
+        hypervisor = h.get("hypervisor") or {}
+        ext_addr = hypervisor.get("externalAddress") or {}
+        ipv4 = ext_addr.get("ipv4") or {}
+        cluster_ref = h.get("cluster") or {}
+        return {
+            "name": h.get("hostName"),
+            "extId": h.get("extId"),
+            "hypervisorType": hypervisor.get("type"),
+            "ipAddress": ipv4.get("value"),
+            "cpuModel": h.get("cpuModel"),
+            "numCpuSockets": h.get("numberOfCpuSockets"),
+            "numCpuCores": h.get("numberOfCpuCores"),
+            "memorySizeBytes": h.get("memorySizeBytes"),
+            "cluster": cluster_ref.get("uuid") or cluster_ref.get("extId"),
+            "clusterName": cluster_ref.get("name"),
+        }
+
     return {
         "count": len(hosts),
         "truncated": metadata.get("truncated", False),
-        "hosts": [
-            {
-                "name": h.get("name"),
-                "extId": h.get("extId"),
-                "hypervisorType": h.get("hypervisor", {}).get("type"),
-                "ipAddress": h.get("hypervisor", {}).get("ip"),
-                "cpuModel": h.get("cpu", {}).get("model"),
-                "numCpuSockets": h.get("cpu", {}).get("numSockets"),
-                "numCpuCores": h.get("cpu", {}).get("numCores"),
-                "memoryCapacityBytes": h.get("memoryCapacityBytes"),
-                "cluster": h.get("cluster", {}).get("extId"),
-            }
-            for h in hosts
-        ],
+        "hosts": [_extract_host(h) for h in hosts],
     }
 
 
@@ -229,10 +235,13 @@ async def handle_list_storage_containers(
         "storageContainers": [
             {
                 "name": sc.get("name"),
-                "extId": sc.get("extId"),
+                "extId": sc.get("containerExtId"),
                 "maxCapacityBytes": sc.get("maxCapacityBytes"),
-                "usedBytes": sc.get("usageStats", {}).get("usedBytes"),
-                "cluster": sc.get("cluster", {}).get("extId"),
+                "replicationFactor": sc.get("replicationFactor"),
+                "compressionEnabled": sc.get("isCompressionEnabled"),
+                "encrypted": sc.get("isEncrypted"),
+                "clusterExtId": sc.get("clusterExtId"),
+                "clusterName": sc.get("clusterName"),
             }
             for sc in containers
         ],
