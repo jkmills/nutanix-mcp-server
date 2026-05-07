@@ -331,6 +331,9 @@ class NutanixClient:
         Fetches pages of `page_size` until all results are collected or
         `max_results` is reached. Returns a combined response with all data.
 
+        Uses extId-based deduplication to detect when the API does not
+        properly support $skip pagination (returns repeated results).
+
         Args:
             namespace: API namespace (e.g., 'vmm', 'clustermgmt')
             path: Resource path
@@ -342,6 +345,7 @@ class NutanixClient:
         """
         ceiling = min(max_results, self.MAX_TOTAL_RESULTS) if max_results else self.MAX_TOTAL_RESULTS
         all_data: list[Any] = []
+        seen_ids: set[str] = set()
         skip = 0
 
         while True:
@@ -356,10 +360,27 @@ class NutanixClient:
             )
 
             page_data = result.get("data", [])
-            all_data.extend(page_data)
+            if not page_data:
+                break
 
-            # Stop conditions: no more data, reached ceiling, or partial page
-            if not page_data or len(all_data) >= ceiling or len(page_data) < page_size:
+            # Deduplicate using extId to guard against APIs that ignore $skip
+            new_items = []
+            for item in page_data:
+                item_id = item.get("extId") if isinstance(item, dict) else None
+                if item_id:
+                    if item_id in seen_ids:
+                        continue
+                    seen_ids.add(item_id)
+                new_items.append(item)
+
+            # If the entire page was duplicates, pagination isn't advancing
+            if not new_items:
+                break
+
+            all_data.extend(new_items)
+
+            # Stop conditions: reached ceiling or partial page
+            if len(all_data) >= ceiling or len(page_data) < page_size:
                 break
 
             skip += len(page_data)
