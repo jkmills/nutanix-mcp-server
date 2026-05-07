@@ -16,6 +16,7 @@ from nutanix_mcp.client import NutanixClient
 
 ALL_SECTIONS = [
     "overview",
+    "system",
     "hosts",
     "vms",
     "networks",
@@ -34,7 +35,7 @@ ASBUILT_TOOLS: list[dict] = [
             "Generate an infrastructure AsBuilt report from a Nutanix Prism Element cluster. "
             "Queries live cluster data and returns a structured Markdown report with tables "
             "and Mermaid topology diagrams. Use 'sections' to include only specific parts. "
-            "Available sections: overview, hosts, vms, networks, storage, protection_domains, alerts, health."
+            "Available sections: overview, system, hosts, vms, networks, storage, protection_domains, alerts, health."
         ),
         "inputSchema": {
             "type": "object",
@@ -49,7 +50,7 @@ ASBUILT_TOOLS: list[dict] = [
                     "description": (
                         "Which sections to include in the report. "
                         "Defaults to all sections if omitted. "
-                        "Options: overview, hosts, vms, networks, storage, "
+                        "Options: overview, system, hosts, vms, networks, storage, "
                         "protection_domains, alerts, health"
                     ),
                 },
@@ -95,49 +96,236 @@ ASBUILT_TOOLS: list[dict] = [
 ]
 
 
+# ─── Nutanix API Value Mappings ────────────────────────────────────────────────
+
+HYPERVISOR_NAMES: dict[str, str] = {
+    "kKvm": "AHV",
+    "kVMware": "ESXi",
+    "kHyperv": "Hyper-V",
+    "kXen": "Xen",
+    "AHV": "AHV",
+    "ESXi": "ESXi",
+}
+
+STORAGE_TYPE_NAMES: dict[str, str] = {
+    "all_flash": "All Flash",
+    "hybrid": "Hybrid (SSD + HDD)",
+    "all_hdd": "All HDD",
+    "DAS-SATA": "DAS-SATA",
+}
+
+
+def _friendly_hypervisor(raw: str | None) -> str:
+    """Map API hypervisor type to friendly display name."""
+    if not raw:
+        return "Unknown"
+    return HYPERVISOR_NAMES.get(raw, raw)
+
+
+def _friendly_storage_type(raw: str | None) -> str:
+    """Map API storage type to friendly display name."""
+    if not raw:
+        return "Unknown"
+    return STORAGE_TYPE_NAMES.get(raw, raw)
+
+
+def _strip_k_prefix(value: str | None) -> str:
+    """Strip Nutanix 'k' prefix from enum values (kInfo → Info, kWarning → Warning)."""
+    if not value:
+        return value or ""
+    if len(value) > 1 and value[0] == "k" and value[1].isupper():
+        return value[1:]
+    return value
+
+
 # ─── Data Collection Helpers ──────────────────────────────────────────────────
 
 
 async def _collect_overview(client: NutanixClient, pe_host: str) -> dict[str, Any]:
     """Collect cluster overview data."""
     result = await client.pe_get(pe_host, "cluster")
+    raw_hyp = result.get("hypervisor_types") or []
     return {
-        "name": result.get("name", "Unknown"),
-        "uuid": result.get("cluster_uuid", ""),
-        "version": result.get("version", ""),
-        "numNodes": result.get("num_nodes", 0),
-        "storageType": result.get("storage_type", ""),
-        "hypervisorTypes": result.get("hypervisor_types", []),
-        "externalIp": result.get("cluster_external_ipaddress", ""),
-        "timezone": result.get("timezone", ""),
-        "nccVersion": result.get("ncc_version", ""),
-        "blockSerials": result.get("rackable_units", []),
+        "name": result.get("name") or "Unknown",
+        "uuid": result.get("cluster_uuid") or "",
+        "version": result.get("version") or "",
+        "numNodes": result.get("num_nodes") or 0,
+        "storageType": _friendly_storage_type(result.get("storage_type")),
+        "hypervisorTypes": [_friendly_hypervisor(h) for h in raw_hyp],
+        "externalIp": result.get("cluster_external_ipaddress") or "",
+        "externalDataServicesIp": result.get("cluster_external_data_services_ipaddress") or "",
+        "timezone": result.get("timezone") or "",
+        "nccVersion": result.get("ncc_version") or "",
+        "blockSerials": result.get("rackable_units") or [],
+        "clusterRedundancyFactor": (result.get("cluster_redundancy_state") or {}).get(
+            "desired_redundancy_factor", ""
+        ),
+        "operationMode": result.get("operation_mode") or "",
+        "externalSubnet": result.get("external_subnet") or "",
+        "internalSubnet": result.get("internal_subnet") or "",
+        "nameServers": result.get("name_servers") or [],
+        "ntpServers": result.get("ntp_servers") or [],
+        "faultToleranceDomainType": result.get("fault_tolerance_domain_type") or "",
     }
 
 
 async def _collect_hosts(client: NutanixClient, pe_host: str) -> list[dict]:
-    """Collect host inventory."""
+    """Collect host inventory with hardware details."""
     result = await client.pe_list(pe_host, "hosts")
     entities = result.get("entities", [])
-    return [
-        {
-            "name": h.get("name", ""),
-            "uuid": h.get("uuid", ""),
-            "hypervisorAddress": h.get("hypervisor_address", ""),
-            "cvmAddress": h.get("controller_vm_backplane_ip", ""),
-            "ipmiAddress": h.get("ipmi_address", ""),
-            "cpuModel": h.get("cpu_model", ""),
-            "numCpuSockets": h.get("num_cpu_sockets", 0),
-            "numCpuCores": h.get("num_cpu_cores", 0),
-            "memoryCapacityGb": (h.get("memory_capacity_in_bytes", 0)) // (1024**3),
-            "hypervisorType": h.get("hypervisor_type", ""),
-            "hypervisorVersion": h.get("hypervisor_full_name", ""),
-            "serial": h.get("serial", ""),
-            "blockModel": h.get("block_model_name", ""),
-            "blockSerial": h.get("block_serial", ""),
+    hosts = []
+    for h in entities:
+        host_data = {
+            "name": h.get("name") or "",
+            "uuid": h.get("uuid") or "",
+            "hypervisorAddress": h.get("hypervisor_address") or "",
+            "cvmAddress": h.get("service_vmexternal_ip") or h.get("controller_vm_backplane_ip") or "",
+            "ipmiAddress": h.get("ipmi_address") or "",
+            "cpuModel": h.get("cpu_model") or "",
+            "numCpuSockets": h.get("num_cpu_sockets") or 0,
+            "numCpuCores": h.get("num_cpu_cores") or 0,
+            "cpuCapacityGhz": round((h.get("cpu_capacity_in_hz") or 0) / 1e9, 1),
+            "memoryCapacityGb": (h.get("memory_capacity_in_bytes") or 0) // (1024**3),
+            "hypervisorType": _friendly_hypervisor(h.get("hypervisor_type")),
+            "hypervisorVersion": h.get("hypervisor_full_name") or "",
+            "serial": h.get("serial") or "",
+            "blockModel": h.get("block_model_name") or "",
+            "blockSerial": h.get("block_serial") or "",
+            "bmcVersion": h.get("bmc_version") or "",
+            "biosVersion": h.get("bios_version") or "",
+            "numVms": h.get("num_vms") or 0,
+            "oplogDiskPct": h.get("oplog_disk_pct") or 0,
+            "oplogDiskSizeGb": round((h.get("oplog_disk_size") or 0) / (1024**3), 1),
+            "monitored": h.get("monitored", True),
+            "hostType": h.get("host_type") or "",
         }
-        for h in entities
-    ]
+        hosts.append(host_data)
+    return hosts
+
+
+async def _collect_system(client: NutanixClient, pe_host: str) -> dict[str, Any]:
+    """Collect system configuration (auth, SMTP, SNMP, licensing, images)."""
+    system: dict[str, Any] = {}
+
+    # Authentication
+    try:
+        auth = await client.pe_get(pe_host, "authconfig")
+        system["auth"] = {
+            "authTypes": auth.get("auth_type_list") or [],
+            "directories": [
+                {
+                    "name": d.get("name") or "",
+                    "type": d.get("directory_type") or "",
+                    "domain": d.get("domain") or "",
+                    "url": d.get("directory_url") or "",
+                }
+                for d in (auth.get("directory_list") or [])
+            ],
+        }
+    except Exception:
+        pass
+
+    # SMTP
+    try:
+        smtp = await client.pe_get(pe_host, "cluster/smtp")
+        if smtp and smtp.get("address"):
+            system["smtp"] = {
+                "address": smtp.get("address") or "",
+                "port": smtp.get("port") or "",
+                "secureMode": smtp.get("secure_mode") or "",
+                "fromEmail": smtp.get("from_email_address") or "",
+            }
+    except Exception:
+        pass
+
+    # SNMP
+    try:
+        snmp = await client.pe_get(pe_host, "snmp")
+        if snmp and snmp.get("enabled"):
+            system["snmp"] = {
+                "enabled": snmp.get("enabled", False),
+                "traps": len(snmp.get("snmp_traps") or []),
+                "users": len(snmp.get("snmp_users") or []),
+            }
+    except Exception:
+        pass
+
+    # Syslog
+    try:
+        syslog = await client.pe_get(pe_host, "cluster/syslog")
+        modules = syslog.get("syslogModules") or syslog.get("modules") or []
+        if modules:
+            system["syslog"] = {"serverCount": len(modules)}
+    except Exception:
+        pass
+
+    # Licensing
+    try:
+        license_info = await client.pe_get(pe_host, "license")
+        system["license"] = {
+            "category": license_info.get("category") or "Unknown",
+        }
+    except Exception:
+        pass
+
+    # Images
+    try:
+        images_result = await client.pe_list(pe_host, "images")
+        images = images_result.get("entities") or []
+        system["images"] = [
+            {
+                "name": img.get("name") or "",
+                "type": img.get("image_type") or "",
+                "state": img.get("image_state") or "",
+                "sizeGb": round((img.get("vm_disk_size") or 0) / (1024**3), 1),
+            }
+            for img in images
+        ]
+    except Exception:
+        pass
+
+    # NFS Whitelists
+    try:
+        nfs = await client.pe_get(pe_host, "cluster/nfs_whitelist")
+        if nfs:
+            wl = nfs if isinstance(nfs, list) else nfs.get("whitelist") or []
+            if wl:
+                system["nfsWhitelist"] = wl
+    except Exception:
+        pass
+
+    return system
+
+
+async def _collect_host_disks(client: NutanixClient, pe_host: str, hosts: list[dict]) -> dict[str, list[dict]]:
+    """Collect per-host physical disk inventory."""
+    host_disks: dict[str, list[dict]] = {}
+    for h in hosts:
+        host_uuid = h.get("uuid", "")
+        if not host_uuid:
+            continue
+        try:
+            result = await client.pe_get(pe_host, f"hosts/{host_uuid}/host_disks")
+            entities = result.get("entities") or []
+            host_disks[host_uuid] = [
+                {
+                    "location": d.get("location") or "",
+                    "id": d.get("id") or "",
+                    "serial": (d.get("disk_hardware_config") or {}).get("serial_number") or "",
+                    "model": (d.get("disk_hardware_config") or {}).get("model") or "",
+                    "vendor": (d.get("disk_hardware_config") or {}).get("vendor") or "",
+                    "firmware": (d.get("disk_hardware_config") or {}).get("current_firmware_version") or "",
+                    "tier": _strip_k_prefix(d.get("storage_tier_name") or ""),
+                    "capacityTb": round((d.get("disk_size") or 0) / (1024**4), 2),
+                    "status": d.get("disk_status") or "",
+                    "online": d.get("online", True),
+                    "selfEncrypting": d.get("self_encrypting_drive", False),
+                }
+                for d in entities
+            ]
+        except Exception:
+            pass
+    return host_disks
 
 
 async def _collect_vms(client: NutanixClient, pe_host: str) -> list[dict]:
@@ -231,7 +419,7 @@ def _summarize_disks(disks: list[dict]) -> dict:
     """Summarize disk tiers and counts."""
     tiers: dict[str, dict] = {}
     for d in disks:
-        tier = d.get("storage_tier_name", "Unknown")
+        tier = _strip_k_prefix(d.get("storage_tier_name") or "Unknown")
         if tier not in tiers:
             tiers[tier] = {"count": 0, "totalCapacityTb": 0.0}
         tiers[tier]["count"] += 1
@@ -243,16 +431,18 @@ def _summarize_disks(disks: list[dict]) -> dict:
     return {"tiers": tiers, "totalDisks": len(disks)}
 
 
-async def _collect_protection_domains(client: NutanixClient, pe_host: str) -> list[dict]:
-    """Collect protection domain configuration."""
-    result = await client.pe_list(pe_host, "protection_domains")
-    entities = result.get("entities", [])
-    return [
+async def _collect_protection_domains(client: NutanixClient, pe_host: str) -> dict[str, Any]:
+    """Collect protection domain configuration, remote sites, and unprotected VMs."""
+    pd_result = await client.pe_list(pe_host, "protection_domains")
+    pd_entities = pd_result.get("entities", [])
+
+    pds = [
         {
             "name": pd.get("name", ""),
             "active": pd.get("active", False),
             "vmCount": len(pd.get("vms", [])),
             "cronSchedules": len(pd.get("cron_schedules", [])),
+            "writtenBytes": pd.get("total_user_written_bytes", 0),
             "replicationLinks": [
                 {
                     "remoteSite": rl.get("remote_site_name", ""),
@@ -260,8 +450,45 @@ async def _collect_protection_domains(client: NutanixClient, pe_host: str) -> li
                 for rl in pd.get("replication_links", [])
             ],
         }
-        for pd in entities
+        for pd in pd_entities
     ]
+
+    # Remote sites
+    remote_sites: list[dict] = []
+    try:
+        rs_result = await client.pe_list(pe_host, "remote_sites")
+        for rs in rs_result.get("entities", []):
+            remote_sites.append({
+                "name": rs.get("name") or "",
+                "remoteAddresses": rs.get("remote_ip_ports") or {},
+                "capabilities": rs.get("capabilities") or [],
+                "metroReady": rs.get("metro_ready", False),
+                "compressOnWire": rs.get("compress_on_wire", False),
+                "bandwidthThrottling": rs.get("bandwidth_policy_enabled", False),
+            })
+    except Exception:
+        pass
+
+    # Unprotected VMs
+    unprotected_vms: list[dict] = []
+    try:
+        up_result = await client.pe_list(pe_host, "vms", filter_criteria="protection_type==kUnprotected")
+        for vm in up_result.get("entities", []):
+            if vm.get("power_state", "").lower() == "on":
+                unprotected_vms.append({
+                    "name": vm.get("name") or "",
+                    "powerState": vm.get("power_state") or "",
+                    "numVcpus": vm.get("num_vcpus") or 0,
+                    "memoryMb": vm.get("memory_mb") or 0,
+                })
+    except Exception:
+        pass
+
+    return {
+        "domains": pds,
+        "remoteSites": remote_sites,
+        "unprotectedVms": unprotected_vms,
+    }
 
 
 async def _collect_alerts(client: NutanixClient, pe_host: str) -> dict[str, Any]:
@@ -271,7 +498,7 @@ async def _collect_alerts(client: NutanixClient, pe_host: str) -> dict[str, Any]
 
     severity_counts: dict[str, int] = {}
     for a in entities:
-        sev = a.get("severity", "UNKNOWN")
+        sev = _strip_k_prefix(a.get("severity") or "UNKNOWN")
         severity_counts[sev] = severity_counts.get(sev, 0) + 1
 
     return {
@@ -279,9 +506,9 @@ async def _collect_alerts(client: NutanixClient, pe_host: str) -> dict[str, Any]
         "bySeverity": severity_counts,
         "recent": [
             {
-                "title": a.get("alert_title", ""),
-                "severity": a.get("severity", ""),
-                "message": a.get("message", ""),
+                "title": a.get("alert_title") or "",
+                "severity": _strip_k_prefix(a.get("severity") or ""),
+                "message": (a.get("message") or "")[:120],
             }
             for a in entities[:10]
         ],
@@ -336,8 +563,11 @@ def _generate_markdown(
     if "overview" in sections and "overview" in data:
         lines.extend(_section_overview(data["overview"]))
 
+    if "system" in sections and "system" in data:
+        lines.extend(_section_system(data["system"]))
+
     if "hosts" in sections and "hosts" in data:
-        lines.extend(_section_hosts(data["hosts"]))
+        lines.extend(_section_hosts(data["hosts"], data.get("host_disks")))
 
     if "vms" in sections and "vms" in data:
         lines.extend(_section_vms(data["vms"]))
@@ -366,53 +596,214 @@ def _generate_markdown(
 
 def _section_overview(overview: dict) -> list[str]:
     """Generate the cluster overview section."""
+    rf = overview.get("clusterRedundancyFactor", "")
+    rf_display = f"RF {rf}" if rf else "N/A"
+    ft_domain = overview.get("faultToleranceDomainType") or "N/A"
+
     lines = [
         "## Cluster Overview",
+        "",
+        "### Hardware",
         "",
         "| Property | Value |",
         "|----------|-------|",
         f"| **Cluster Name** | {overview['name']} |",
         f"| **Cluster UUID** | `{overview['uuid']}` |",
         f"| **AOS Version** | {overview['version']} |",
-        f"| **NCC Version** | {overview.get('nccVersion', 'N/A')} |",
+        f"| **NCC Version** | {overview.get('nccVersion') or 'N/A'} |",
         f"| **Node Count** | {overview['numNodes']} |",
         f"| **Storage Type** | {overview['storageType']} |",
-        f"| **Hypervisor** | {', '.join(overview.get('hypervisorTypes', []))} |",
-        f"| **External IP** | {overview['externalIp']} |",
-        f"| **Timezone** | {overview.get('timezone', 'N/A')} |",
+        f"| **Hypervisor** | {', '.join(overview.get('hypervisorTypes') or [])} |",
+        f"| **Redundancy Factor** | {rf_display} |",
+        f"| **Fault Tolerance Domain** | {ft_domain} |",
+        f"| **Timezone** | {overview.get('timezone') or 'N/A'} |",
+        "",
+        "### Network",
+        "",
+        "| Property | Value |",
+        "|----------|-------|",
+        f"| **Virtual IP (VIP)** | {overview.get('externalIp') or 'N/A'} |",
+        f"| **iSCSI Data Services IP** | {overview.get('externalDataServicesIp') or 'N/A'} |",
+        f"| **External Subnet** | {overview.get('externalSubnet') or 'N/A'} |",
+        f"| **Internal Subnet** | {overview.get('internalSubnet') or 'N/A'} |",
+        f"| **DNS Servers** | {', '.join(overview.get('nameServers') or []) or 'N/A'} |",
+        f"| **NTP Servers** | {', '.join(overview.get('ntpServers') or []) or 'N/A'} |",
         "",
     ]
     return lines
 
 
-def _section_hosts(hosts: list[dict]) -> list[str]:
-    """Generate the host inventory section."""
+def _section_system(system: dict) -> list[str]:
+    """Generate the system configuration section."""
+    lines = ["## System Configuration", ""]
+
+    # Licensing
+    lic = system.get("license")
+    if lic:
+        lines.extend([
+            "### Licensing",
+            "",
+            f"- **License Type:** {lic.get('category', 'Unknown')}",
+            "",
+        ])
+
+    # Authentication
+    auth = system.get("auth")
+    if auth:
+        auth_types = ", ".join(auth.get("authTypes") or []) or "N/A"
+        lines.extend(["### Authentication", "", f"- **Auth Types:** {auth_types}", ""])
+        dirs = auth.get("directories") or []
+        if dirs:
+            lines.extend([
+                "| Directory Name | Type | Domain | URL |",
+                "|---------------|------|--------|-----|",
+            ])
+            for d in dirs:
+                lines.append(
+                    f"| {d['name']} | {d['type']} | {d['domain']} | {d['url']} |"
+                )
+            lines.append("")
+
+    # SMTP
+    smtp = system.get("smtp")
+    if smtp:
+        lines.extend([
+            "### SMTP Configuration",
+            "",
+            f"- **Server:** {smtp['address']}:{smtp['port']}",
+            f"- **Secure Mode:** {smtp.get('secureMode') or 'None'}",
+            f"- **From Email:** {smtp.get('fromEmail') or 'N/A'}",
+            "",
+        ])
+
+    # SNMP
+    snmp = system.get("snmp")
+    if snmp:
+        lines.extend([
+            "### SNMP Configuration",
+            "",
+            f"- **Enabled:** {'✅' if snmp.get('enabled') else '❌'}",
+            f"- **Trap Destinations:** {snmp.get('traps', 0)}",
+            f"- **Users:** {snmp.get('users', 0)}",
+            "",
+        ])
+
+    # Syslog
+    syslog = system.get("syslog")
+    if syslog:
+        lines.extend([
+            "### Syslog Configuration",
+            "",
+            f"- **Remote Servers:** {syslog.get('serverCount', 0)}",
+            "",
+        ])
+
+    # NFS Whitelists
+    nfs_wl = system.get("nfsWhitelist")
+    if nfs_wl:
+        lines.extend([
+            "### Global Filesystem Whitelists",
+            "",
+            "- " + ", ".join(f"`{w}`" for w in nfs_wl),
+            "",
+        ])
+
+    # Images
+    images = system.get("images")
+    if images:
+        lines.extend([
+            "### Image Library",
+            "",
+            f"**Total Images:** {len(images)}",
+            "",
+            "| Image Name | Type | State | Size (GB) |",
+            "|-----------|------|-------|-----------|",
+        ])
+        for img in images:
+            lines.append(
+                f"| {img['name']} | {img['type']} | {img['state']} | {img['sizeGb']} |"
+            )
+        lines.append("")
+
+    return lines
+
+
+def _section_hosts(hosts: list[dict], host_disks: dict[str, list[dict]] | None = None) -> list[str]:
+    """Generate the host inventory section with per-host detail cards."""
     lines = [
         "## Host Inventory",
         "",
         f"**Total Hosts:** {len(hosts)}",
         "",
-        "| Host Name | IP Address | CPU Model | Sockets | Cores | RAM (GB) | Hypervisor | Block Model | Serial |",
-        "|-----------|-----------|-----------|---------|-------|----------|------------|-------------|--------|",
     ]
-    for h in hosts:
-        lines.append(
-            f"| {h['name']} | {h['hypervisorAddress']} | {h['cpuModel']} | "
-            f"{h['numCpuSockets']} | {h['numCpuCores']} | {h['memoryCapacityGb']} | "
-            f"{h['hypervisorType']} | {h.get('blockModel', '')} | {h.get('serial', '')} |"
-        )
-    lines.append("")
 
-    # Host resource summary
+    # Summary table
     total_cores = sum(h.get("numCpuCores", 0) for h in hosts)
+    total_cpu_ghz = sum(h.get("cpuCapacityGhz", 0) for h in hosts)
     total_ram = sum(h.get("memoryCapacityGb", 0) for h in hosts)
+    total_vms = sum(h.get("numVms", 0) for h in hosts)
     lines.extend([
         "### Resource Summary",
         "",
-        f"- **Total CPU Cores:** {total_cores}",
+        f"- **Total CPU Cores:** {total_cores} ({round(total_cpu_ghz, 1)} GHz)",
         f"- **Total RAM:** {total_ram} GB ({round(total_ram / 1024, 1)} TB)",
+        f"- **Total VMs:** {total_vms}",
         "",
     ])
+
+    # Per-host detail cards
+    for h in hosts:
+        lines.extend([
+            f"### {h['name']}",
+            "",
+            "#### Hardware",
+            "",
+            "| Property | Value |",
+            "|----------|-------|",
+            f"| **Node Serial** | {h.get('serial') or 'N/A'} |",
+            f"| **Block Model** | {h.get('blockModel') or 'N/A'} |",
+            f"| **Block Serial** | {h.get('blockSerial') or 'N/A'} |",
+            f"| **CPU Model** | {h.get('cpuModel') or 'N/A'} |",
+            f"| **CPU Sockets** | {h.get('numCpuSockets', 0)} |",
+            f"| **CPU Cores** | {h.get('numCpuCores', 0)} |",
+            f"| **CPU Capacity** | {h.get('cpuCapacityGhz', 0)} GHz |",
+            f"| **RAM** | {h.get('memoryCapacityGb', 0)} GB |",
+            f"| **Hypervisor** | {h.get('hypervisorType') or 'N/A'} |",
+            f"| **Hypervisor Version** | {h.get('hypervisorVersion') or 'N/A'} |",
+            f"| **BMC Version** | {h.get('bmcVersion') or 'N/A'} |",
+            f"| **BIOS Version** | {h.get('biosVersion') or 'N/A'} |",
+            f"| **VMs Running** | {h.get('numVms', 0)} |",
+            "",
+            "#### Network",
+            "",
+            "| Interface | IP Address |",
+            "|-----------|-----------|",
+            f"| **Hypervisor** | {h.get('hypervisorAddress') or 'N/A'} |",
+            f"| **CVM** | {h.get('cvmAddress') or 'N/A'} |",
+            f"| **IPMI/BMC** | {h.get('ipmiAddress') or 'N/A'} |",
+            "",
+        ])
+
+        # Per-host disk inventory
+        uuid = h.get("uuid", "")
+        disks = (host_disks or {}).get(uuid, [])
+        if disks:
+            lines.extend([
+                "#### Disks",
+                "",
+                f"**Disks on this host:** {len(disks)}",
+                "",
+                "| Location | Tier | Model | Serial | Firmware | Capacity (TB) | Status |",
+                "|----------|------|-------|--------|----------|--------------|--------|",
+            ])
+            for d in disks:
+                status = "🟢 Online" if d.get("online", True) else "🔴 Offline"
+                lines.append(
+                    f"| {d.get('location', '')} | {d.get('tier', '')} | {d.get('model', '')} | "
+                    f"{d.get('serial', '')} | {d.get('firmware', '')} | {d.get('capacityTb', 0)} | {status} |"
+                )
+            lines.append("")
+
     return lines
 
 
@@ -526,8 +917,18 @@ def _section_storage(storage: dict) -> list[str]:
     return lines
 
 
-def _section_protection_domains(pds: list[dict]) -> list[str]:
+def _section_protection_domains(pd_data: dict | list) -> list[str]:
     """Generate the protection domains section."""
+    # Support both old list format and new dict format
+    if isinstance(pd_data, list):
+        pds = pd_data
+        remote_sites: list[dict] = []
+        unprotected_vms: list[dict] = []
+    else:
+        pds = pd_data.get("domains", [])
+        remote_sites = pd_data.get("remoteSites", [])
+        unprotected_vms = pd_data.get("unprotectedVms", [])
+
     lines = [
         "## Data Protection",
         "",
@@ -537,12 +938,45 @@ def _section_protection_domains(pds: list[dict]) -> list[str]:
         "|---------|--------|-----|-----------|--------------|",
     ]
     for pd in pds:
-        remote_sites = ", ".join(rl.get("remoteSite", "") for rl in pd.get("replicationLinks", []))
+        rs_names = ", ".join(rl.get("remoteSite", "") for rl in pd.get("replicationLinks", []))
         lines.append(
             f"| {pd['name']} | {'✅' if pd['active'] else '❌'} | "
-            f"{pd['vmCount']} | {pd['cronSchedules']} | {remote_sites or '—'} |"
+            f"{pd['vmCount']} | {pd['cronSchedules']} | {rs_names or '—'} |"
         )
     lines.append("")
+
+    # Remote sites
+    if remote_sites:
+        lines.extend([
+            "### Remote Sites",
+            "",
+            "| Site Name | Metro Ready | Compress on Wire | Bandwidth Throttle |",
+            "|-----------|-------------|-----------------|-------------------|",
+        ])
+        for rs in remote_sites:
+            lines.append(
+                f"| {rs['name']} | {'✅' if rs.get('metroReady') else '❌'} | "
+                f"{'✅' if rs.get('compressOnWire') else '❌'} | "
+                f"{'✅' if rs.get('bandwidthThrottling') else '❌'} |"
+            )
+        lines.append("")
+
+    # Unprotected VMs
+    if unprotected_vms:
+        lines.extend([
+            "### Unprotected VMs (powered on)",
+            "",
+            f"**Count:** {len(unprotected_vms)}",
+            "",
+            "| VM Name | vCPUs | RAM (MB) |",
+            "|---------|-------|----------|",
+        ])
+        for vm in unprotected_vms[:30]:
+            lines.append(f"| {vm['name']} | {vm['numVcpus']} | {vm['memoryMb']} |")
+        if len(unprotected_vms) > 30:
+            lines.append(f"| *...and {len(unprotected_vms) - 30} more* | | |")
+        lines.append("")
+
     return lines
 
 
@@ -613,29 +1047,48 @@ def _section_health(health: dict) -> list[str]:
 
 
 def _section_topology_diagram(overview: dict, hosts: list[dict]) -> list[str]:
-    """Generate a Mermaid topology diagram."""
+    """Generate a Mermaid topology diagram with distinct shapes."""
     cluster_name = overview.get("name", "Cluster")
+    version = overview.get("version", "")
+    hyp = ", ".join(overview.get("hypervisorTypes") or [])
+    storage_type = overview.get("storageType", "")
+    num_nodes = overview.get("numNodes", 0)
+
     lines = [
         "## Cluster Topology",
         "",
         "```mermaid",
         "graph TD",
-        f'    PC["🖥️ Prism Central"]',
-        f'    CLUSTER["{cluster_name}<br/>AOS {overview.get("version", "")}<br/>{overview.get("numNodes", 0)} Nodes"]',
-        "    PC --> CLUSTER",
+        f'    PC(["☁️ Prism Central"]):::pcStyle',
+        f'    CLUSTER{{"🏢 {cluster_name}<br/>'
+        f"AOS {version} | {hyp}<br/>"
+        f'{storage_type} | {num_nodes} Nodes"}}:::clusterStyle',
+        "    PC --- CLUSTER",
         "",
     ]
     for i, h in enumerate(hosts):
         host_id = f"H{i}"
-        ram = h.get("memoryCapacityGb", 0)
+        name = h.get("name", "")
+        ip = h.get("hypervisorAddress", "")
         cores = h.get("numCpuCores", 0)
+        sockets = h.get("numCpuSockets", 0)
+        ram = h.get("memoryCapacityGb", 0)
+        model = h.get("blockModel") or ""
         lines.append(
-            f'    {host_id}["{h["name"]}<br/>{h["hypervisorAddress"]}<br/>'
-            f'{cores} cores / {ram} GB"]'
+            f'    {host_id}["🖥️ {name}<br/>'
+            f"{ip}<br/>"
+            f"CPU: {sockets}S / {cores}C<br/>"
+            f'RAM: {ram} GB<br/>'
+            f'{model}"]:::hostStyle'
         )
-        lines.append(f"    CLUSTER --> {host_id}")
+        lines.append(f"    CLUSTER --- {host_id}")
 
+    # Style definitions
     lines.extend([
+        "",
+        "    classDef pcStyle fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#1e1b4b",
+        "    classDef clusterStyle fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f",
+        "    classDef hostStyle fill:#d1fae5,stroke:#059669,stroke-width:2px,color:#064e3b",
         "```",
         "",
     ])
@@ -660,6 +1113,7 @@ HTML_TEMPLATE = """\
     --text: #1f2937;
     --border: #e5e7eb;
     --header-bg: #f9fafb;
+    --toc-width: 260px;
   }}
   * {{ margin: 0; padding: 0; box-sizing: border-box; }}
   body {{
@@ -667,10 +1121,51 @@ HTML_TEMPLATE = """\
     color: var(--text);
     background: var(--bg);
     line-height: 1.6;
-    padding: 40px;
-    max-width: 1100px;
+    padding: 40px 40px 40px calc(var(--toc-width) + 60px);
+    max-width: calc(1100px + var(--toc-width) + 60px);
     margin: 0 auto;
   }}
+  /* ─── Table of Contents Sidebar ─── */
+  #toc {{
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--toc-width);
+    height: 100vh;
+    overflow-y: auto;
+    background: #f8fafc;
+    border-right: 1px solid var(--border);
+    padding: 20px 16px;
+    font-size: 13px;
+    z-index: 100;
+  }}
+  #toc h3 {{
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }}
+  #toc ul {{ list-style: none; margin: 0; padding: 0; }}
+  #toc li {{ margin-bottom: 2px; }}
+  #toc a {{
+    display: block;
+    padding: 4px 8px;
+    color: var(--text);
+    text-decoration: none;
+    border-radius: 4px;
+    transition: background 0.15s;
+  }}
+  #toc a:hover {{ background: #e5e7eb; }}
+  #toc a.active {{
+    background: #dbeafe;
+    color: var(--primary);
+    font-weight: 600;
+  }}
+  #toc .toc-h3 {{ padding-left: 20px; font-size: 12px; color: #6b7280; }}
+  #toc .toc-h4 {{ padding-left: 32px; font-size: 11px; color: #9ca3af; }}
   h1 {{
     font-size: 28px;
     color: var(--primary);
@@ -692,6 +1187,12 @@ HTML_TEMPLATE = """\
     margin-top: 18px;
     margin-bottom: 8px;
     page-break-after: avoid;
+  }}
+  h4 {{
+    font-size: 15px;
+    margin-top: 14px;
+    margin-bottom: 6px;
+    color: #374151;
   }}
   p {{ margin-bottom: 10px; }}
   strong {{ font-weight: 600; }}
@@ -732,9 +1233,12 @@ HTML_TEMPLATE = """\
   }}
 
   @media print {{
-    body {{ padding: 20px; font-size: 11px; }}
+    #toc {{ display: none; }}
+    body {{ padding: 20px; font-size: 11px; max-width: none; }}
     h1 {{ font-size: 22px; }}
     h2 {{ font-size: 17px; margin-top: 16px; }}
+    h3 {{ font-size: 14px; margin-top: 12px; }}
+    h4 {{ font-size: 12px; margin-top: 10px; }}
     table {{ font-size: 10px; }}
     th, td {{ padding: 4px 6px; }}
     .no-print {{ display: none; }}
@@ -746,10 +1250,50 @@ HTML_TEMPLATE = """\
 </style>
 </head>
 <body>
+<nav id="toc"><h3>Contents</h3><ul id="toc-list"></ul></nav>
 {body}
 <div class="footer">
   Generated by Nutanix MCP Server &mdash; {timestamp}
 </div>
+<script>
+(function() {{
+  // Build TOC from headings
+  var headings = document.querySelectorAll('h2, h3, h4');
+  var tocList = document.getElementById('toc-list');
+  var tocItems = [];
+  headings.forEach(function(h, idx) {{
+    var id = 'section-' + idx;
+    h.id = id;
+    var li = document.createElement('li');
+    var a = document.createElement('a');
+    a.href = '#' + id;
+    a.textContent = h.textContent;
+    a.dataset.target = id;
+    if (h.tagName === 'H3') a.className = 'toc-h3';
+    if (h.tagName === 'H4') a.className = 'toc-h4';
+    li.appendChild(a);
+    tocList.appendChild(li);
+    tocItems.push({{ el: h, link: a }});
+  }});
+  // Highlight active section on scroll
+  var ticking = false;
+  window.addEventListener('scroll', function() {{
+    if (!ticking) {{
+      window.requestAnimationFrame(function() {{
+        var scrollY = window.scrollY + 80;
+        var active = null;
+        for (var i = tocItems.length - 1; i >= 0; i--) {{
+          if (tocItems[i].el.offsetTop <= scrollY) {{ active = i; break; }}
+        }}
+        tocItems.forEach(function(item) {{ item.link.classList.remove('active'); }});
+        if (active !== null) tocItems[active].link.classList.add('active');
+        ticking = false;
+      }});
+      ticking = true;
+    }}
+  }});
+}})();
+</script>
 </body>
 </html>"""
 
@@ -950,6 +1494,20 @@ async def handle_generate_asbuilt(client: NutanixClient, arguments: dict[str, An
                 data[section_name] = await collector_fn(client, pe_host)
             except Exception as e:
                 errors[section_name] = str(e)
+
+    # System config
+    if "system" in sections:
+        try:
+            data["system"] = await _collect_system(client, pe_host)
+        except Exception as e:
+            errors["system"] = str(e)
+
+    # Host disk details (after hosts are collected)
+    if "hosts" in sections and "hosts" in data:
+        try:
+            data["host_disks"] = await _collect_host_disks(client, pe_host, data["hosts"])
+        except Exception as e:
+            errors["host_disks"] = str(e)
 
     if "storage" in sections:
         try:

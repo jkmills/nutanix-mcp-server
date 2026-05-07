@@ -6,8 +6,13 @@ import pytest
 
 from nutanix_mcp.tools.asbuilt import (
     ALL_SECTIONS,
+    _friendly_hypervisor,
+    _friendly_storage_type,
     _generate_markdown,
     _markdown_to_html_body,
+    _section_protection_domains,
+    _section_system,
+    _strip_k_prefix,
     handle_export_asbuilt_html,
     handle_generate_asbuilt,
     handle_get_project_architecture,
@@ -210,10 +215,22 @@ def _setup_pe_mocks(client: AsyncMock):
             "cluster": CLUSTER_RESPONSE,
             "alerts": ALERTS_RESPONSE,
             "health_checks": HEALTH_RESPONSE,
+            "authconfig": {
+                "auth_type_list": ["LOCAL"],
+                "directory_list": [],
+            },
+            "cluster/smtp": {"address": "", "port": 25},
+            "snmp": {"enabled": False},
+            "cluster/syslog": {},
+            "license": {"category": "Pro"},
+            "cluster/nfs_whitelist": [],
         }
+        # Handle host disk paths like "hosts/<uuid>/host_disks"
+        if "/host_disks" in path:
+            return {"entities": []}
         return responses.get(path, {})
 
-    async def mock_pe_list(pe_host, resource, count=None):
+    async def mock_pe_list(pe_host, resource, count=None, filter_criteria=None):
         responses = {
             "hosts": HOSTS_RESPONSE,
             "vms": VMS_RESPONSE,
@@ -222,6 +239,8 @@ def _setup_pe_mocks(client: AsyncMock):
             "storage_pools": POOLS_RESPONSE,
             "disks": DISKS_RESPONSE,
             "protection_domains": PD_RESPONSE,
+            "remote_sites": {"entities": []},
+            "images": {"entities": []},
         }
         return responses.get(resource, {"entities": []})
 
@@ -248,6 +267,7 @@ async def test_generate_asbuilt_all_sections(mock_client):
     assert "# AsBuilt Report" in md
     assert "test-cluster" in md
     assert "## Cluster Overview" in md
+    assert "## System Configuration" in md
     assert "## Host Inventory" in md
     assert "## Virtual Machine Inventory" in md
     assert "## Network Configuration" in md
@@ -440,3 +460,220 @@ async def test_export_asbuilt_html(mock_client):
     assert "<h1>Test Report</h1>" in html_out
     assert "<th>Col</th>" in html_out
     assert result["title"] == "My Report"
+
+
+# ─── Helper function tests ──────────────────────────────────────────────────
+
+
+class TestFriendlyHypervisor:
+    """Tests for _friendly_hypervisor mapping."""
+
+    def test_kkvm_maps_to_ahv(self):
+        assert _friendly_hypervisor("kKvm") == "AHV"
+
+    def test_kvmware_maps_to_esxi(self):
+        assert _friendly_hypervisor("kVMware") == "ESXi"
+
+    def test_khyperv_maps_to_hyperv(self):
+        assert _friendly_hypervisor("kHyperv") == "Hyper-V"
+
+    def test_ahv_passthrough(self):
+        assert _friendly_hypervisor("AHV") == "AHV"
+
+    def test_unknown_value_passthrough(self):
+        assert _friendly_hypervisor("SomeNewType") == "SomeNewType"
+
+    def test_none_returns_unknown(self):
+        assert _friendly_hypervisor(None) == "Unknown"
+
+    def test_empty_returns_unknown(self):
+        assert _friendly_hypervisor("") == "Unknown"
+
+
+class TestFriendlyStorageType:
+    """Tests for _friendly_storage_type mapping."""
+
+    def test_all_flash(self):
+        assert _friendly_storage_type("all_flash") == "All Flash"
+
+    def test_hybrid(self):
+        assert _friendly_storage_type("hybrid") == "Hybrid (SSD + HDD)"
+
+    def test_none_returns_unknown(self):
+        assert _friendly_storage_type(None) == "Unknown"
+
+
+class TestStripKPrefix:
+    """Tests for _strip_k_prefix."""
+
+    def test_kinfo(self):
+        assert _strip_k_prefix("kInfo") == "Info"
+
+    def test_kwarning(self):
+        assert _strip_k_prefix("kWarning") == "Warning"
+
+    def test_kcritical(self):
+        assert _strip_k_prefix("kCritical") == "Critical"
+
+    def test_lowercase_after_k_untouched(self):
+        assert _strip_k_prefix("key") == "key"
+
+    def test_none_returns_empty(self):
+        assert _strip_k_prefix(None) == ""
+
+    def test_empty_returns_empty(self):
+        assert _strip_k_prefix("") == ""
+
+    def test_single_char(self):
+        assert _strip_k_prefix("k") == "k"
+
+
+# ─── Section renderer tests ─────────────────────────────────────────────────
+
+
+class TestSectionProtectionDomains:
+    """Tests for _section_protection_domains with both data formats."""
+
+    def test_dict_format_with_remote_sites(self):
+        """New dict format with remote sites and unprotected VMs."""
+        pd_data = {
+            "domains": [
+                {
+                    "name": "pd-01",
+                    "active": True,
+                    "vmCount": 3,
+                    "cronSchedules": 1,
+                    "replicationLinks": [{"remoteSite": "remote-dc"}],
+                },
+            ],
+            "remoteSites": [
+                {"name": "remote-dc", "metroReady": True, "compressOnWire": True, "bandwidthThrottling": False},
+            ],
+            "unprotectedVms": [
+                {"name": "orphan-vm", "numVcpus": 2, "memoryMb": 4096},
+            ],
+        }
+        lines = _section_protection_domains(pd_data)
+        md = "\n".join(lines)
+        assert "## Data Protection" in md
+        assert "pd-01" in md
+        assert "### Remote Sites" in md
+        assert "remote-dc" in md
+        assert "### Unprotected VMs" in md
+        assert "orphan-vm" in md
+
+    def test_list_format_backward_compat(self):
+        """Old list format still works."""
+        pd_data = [
+            {
+                "name": "pd-01",
+                "active": True,
+                "vmCount": 1,
+                "cronSchedules": 1,
+                "replicationLinks": [],
+            },
+        ]
+        lines = _section_protection_domains(pd_data)
+        md = "\n".join(lines)
+        assert "pd-01" in md
+        assert "### Remote Sites" not in md
+
+
+class TestSectionSystem:
+    """Tests for _section_system."""
+
+    def test_full_system_section(self):
+        system = {
+            "license": {"category": "Pro"},
+            "auth": {"authTypes": ["LOCAL", "LDAP"], "directories": [
+                {"name": "AD", "type": "ACTIVE_DIRECTORY", "domain": "corp.local", "url": "ldaps://dc.corp.local"},
+            ]},
+            "smtp": {"address": "mail.corp.com", "port": 25, "secureMode": "NONE", "fromEmail": "nutanix@corp.com"},
+            "snmp": {"enabled": True, "traps": 2, "users": 1},
+            "syslog": {"serverCount": 1},
+            "nfsWhitelist": ["10.0.0.0/24", "192.168.1.0/24"],
+            "images": [
+                {"name": "ubuntu-22.04", "type": "DISK_IMAGE", "state": "ACTIVE", "sizeGb": 2.5},
+            ],
+        }
+        lines = _section_system(system)
+        md = "\n".join(lines)
+        assert "## System Configuration" in md
+        assert "Pro" in md
+        assert "LDAP" in md
+        assert "mail.corp.com" in md
+        assert "✅" in md  # SNMP enabled
+        assert "ubuntu-22.04" in md
+        assert "`10.0.0.0/24`" in md
+
+    def test_empty_system(self):
+        lines = _section_system({})
+        md = "\n".join(lines)
+        assert "## System Configuration" in md
+        # Should not crash with empty data
+
+
+class TestTopologyDiagram:
+    """Tests for topology diagram generation."""
+
+    def test_mermaid_has_distinct_shapes(self):
+        """Verify Mermaid uses different shapes for PC, cluster, hosts."""
+        data = {
+            "overview": {
+                "name": "prod-cluster",
+                "uuid": "u",
+                "version": "6.5",
+                "numNodes": 2,
+                "hypervisorTypes": ["AHV"],
+                "storageType": "All Flash",
+            },
+            "hosts": [
+                {
+                    "name": "h1", "hypervisorAddress": "10.0.0.1", "cpuModel": "Xeon",
+                    "numCpuSockets": 2, "numCpuCores": 40, "memoryCapacityGb": 256,
+                    "hypervisorType": "AHV", "blockModel": "NX-3060",
+                },
+            ],
+        }
+        md = _generate_markdown("prod-cluster", "10.0.0.100", data, ["overview"])
+        assert "```mermaid" in md
+        assert "pcStyle" in md
+        assert "clusterStyle" in md
+        assert "hostStyle" in md
+        assert 'PC(["' in md  # stadium shape for PC
+        assert "CPU: 2S / 40C" in md
+        assert "RAM: 256 GB" in md
+
+
+class TestHTMLToc:
+    """Tests for interactive TOC in HTML export."""
+
+    @pytest.mark.asyncio
+    async def test_html_has_toc_nav(self, mock_client):
+        result = await handle_export_asbuilt_html(
+            mock_client,
+            {"markdown": "# Title\n\n## Section1\n\n## Section2", "title": "Test"},
+        )
+        html_out = result["html"]
+        assert '<nav id="toc">' in html_out
+        assert 'id="toc-list"' in html_out
+
+    @pytest.mark.asyncio
+    async def test_toc_hidden_in_print(self, mock_client):
+        result = await handle_export_asbuilt_html(
+            mock_client,
+            {"markdown": "# Test", "title": "Test"},
+        )
+        assert "#toc { display: none; }" in result["html"]  # Properly escaped
+        # Verify body padding resets in print
+        assert "padding: 20px" in result["html"]
+
+
+class TestAllSections:
+    """Test that ALL_SECTIONS includes all expected sections."""
+
+    def test_system_section_included(self):
+        assert "system" in ALL_SECTIONS
+
+    def test_section_count(self):
+        assert len(ALL_SECTIONS) == 9
