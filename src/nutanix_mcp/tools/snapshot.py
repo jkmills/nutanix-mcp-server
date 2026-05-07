@@ -36,8 +36,8 @@ SNAPSHOT_TOOLS: list[dict] = [
     {
         "name": "list_vm_snapshots",
         "description": (
-            "List recovery points (snapshots) for a specific VM. "
-            "Returns snapshot names, creation times, and IDs for restore operations."
+            "List ALL recovery points (snapshots) for a specific VM (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed."
         ),
         "inputSchema": {
             "type": "object",
@@ -48,7 +48,7 @@ SNAPSHOT_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of snapshots to return. Default: 20.",
+                    "description": "Optional cap on results. Default: 20.",
                 },
             },
             "required": ["vm_uuid"],

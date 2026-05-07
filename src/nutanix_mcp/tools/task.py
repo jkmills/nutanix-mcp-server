@@ -10,9 +10,9 @@ TASK_TOOLS: list[dict] = [
     {
         "name": "list_tasks",
         "description": (
-            "List recent Nutanix tasks (async operations). Returns task status, "
-            "progress, and associated entity info. Useful for monitoring the outcome "
-            "of write operations (create_vm, power_on_vm, etc.)."
+            "List ALL recent Nutanix tasks (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed. "
+            "Use filter to narrow by status (RUNNING, FAILED, SUCCEEDED)."
         ),
         "inputSchema": {
             "type": "object",
@@ -28,7 +28,7 @@ TASK_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of tasks to return (default: 20).",
+                    "description": "Optional cap on results (default: 20).",
                     "default": 20,
                 },
             },

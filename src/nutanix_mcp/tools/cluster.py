@@ -10,8 +10,8 @@ CLUSTER_TOOLS: list[dict] = [
     {
         "name": "list_clusters",
         "description": (
-            "List all Nutanix clusters registered with Prism Central. "
-            "Returns cluster names, UUIDs, versions, and health status."
+            "List ALL Nutanix clusters registered with Prism Central (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed."
         ),
         "inputSchema": {
             "type": "object",
@@ -43,8 +43,9 @@ CLUSTER_TOOLS: list[dict] = [
     {
         "name": "list_hosts",
         "description": (
-            "List hypervisor hosts across clusters. Returns host names, IPs, "
-            "resource capacity, and health. Optionally filter by cluster."
+            "List ALL hypervisor hosts (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed. "
+            "Optionally filter by cluster UUID."
         ),
         "inputSchema": {
             "type": "object",
@@ -59,7 +60,7 @@ CLUSTER_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of hosts to return. Omit to retrieve all (auto-paginates).",
+                    "description": "Optional cap on results. Omit to get ALL hosts (default behavior).",
                 },
             },
         },
@@ -84,7 +85,8 @@ CLUSTER_TOOLS: list[dict] = [
     {
         "name": "list_storage_containers",
         "description": (
-            "List storage containers available across clusters. Returns names, capacity, usage, and associated cluster."
+            "List ALL storage containers (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed."
         ),
         "inputSchema": {
             "type": "object",
@@ -95,7 +97,7 @@ CLUSTER_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of results. Omit to retrieve all (auto-paginates).",
+                    "description": "Optional cap on results. Omit to get ALL containers (default behavior).",
                 },
             },
         },
@@ -118,7 +120,8 @@ async def handle_list_clusters(client: NutanixClient, arguments: dict[str, Any])
 
     clusters = result.get("data", [])
     return {
-        "count": len(clusters),
+        "totalReturned": len(clusters),
+        "note": "All matching clusters returned. No further pagination needed.",
         "clusters": [
             {
                 "name": c.get("name"),
@@ -163,7 +166,6 @@ async def handle_list_hosts(client: NutanixClient, arguments: dict[str, Any]) ->
     )
 
     hosts = result.get("data", [])
-    metadata = result.get("metadata", {})
 
     def _extract_host(h: dict) -> dict:
         hypervisor = h.get("hypervisor") or {}
@@ -184,8 +186,8 @@ async def handle_list_hosts(client: NutanixClient, arguments: dict[str, Any]) ->
         }
 
     return {
-        "count": len(hosts),
-        "truncated": metadata.get("truncated", False),
+        "totalReturned": len(hosts),
+        "note": "All matching hosts returned. No further pagination needed.",
         "hosts": [_extract_host(h) for h in hosts],
     }
 
@@ -217,10 +219,9 @@ async def handle_list_storage_containers(client: NutanixClient, arguments: dict[
     )
 
     containers = result.get("data", [])
-    metadata = result.get("metadata", {})
     return {
-        "count": len(containers),
-        "truncated": metadata.get("truncated", False),
+        "totalReturned": len(containers),
+        "note": "All matching storage containers returned. No further pagination needed.",
         "storageContainers": [
             {
                 "name": sc.get("name"),

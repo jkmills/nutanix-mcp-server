@@ -10,9 +10,9 @@ ALERT_TOOLS: list[dict] = [
     {
         "name": "list_alerts",
         "description": (
-            "List alerts across all Nutanix clusters from Prism Central. "
-            "Supports filtering by severity, status, and time range. "
-            "Returns alert title, severity, affected entities, and timestamps."
+            "List ALL alerts from Prism Central (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed. "
+            "Supports filtering by severity and resolved status."
         ),
         "inputSchema": {
             "type": "object",
@@ -36,7 +36,7 @@ ALERT_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of alerts to return. Default: 50.",
+                    "description": "Optional cap on results. Default: 50.",
                 },
             },
         },

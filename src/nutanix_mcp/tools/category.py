@@ -61,8 +61,8 @@ CATEGORY_TOOLS: list[dict] = [
     {
         "name": "list_entities_by_category",
         "description": (
-            "Find all VMs tagged with a specific category key:value pair. "
-            "Useful for discovering resources by their organizational tags."
+            "Find ALL VMs tagged with a specific category key:value pair (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed."
         ),
         "inputSchema": {
             "type": "object",
@@ -77,7 +77,7 @@ CATEGORY_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of entities to return. Default: 50.",
+                    "description": "Optional cap on results. Default: 50.",
                 },
             },
             "required": ["category_key", "category_value"],

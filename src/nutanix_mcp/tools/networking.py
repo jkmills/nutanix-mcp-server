@@ -10,8 +10,8 @@ NETWORKING_TOOLS: list[dict] = [
     {
         "name": "list_subnets",
         "description": (
-            "List subnets/VLANs configured in Prism Central. Returns subnet names, "
-            "VLAN IDs, CIDRs, IP pools, and associated clusters."
+            "List ALL subnets/VLANs in Prism Central (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed."
         ),
         "inputSchema": {
             "type": "object",
@@ -24,7 +24,7 @@ NETWORKING_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of subnets to return. Omit to retrieve all (auto-paginates).",
+                    "description": "Optional cap on results. Omit to get ALL subnets (default behavior).",
                 },
             },
         },
@@ -48,8 +48,8 @@ NETWORKING_TOOLS: list[dict] = [
     {
         "name": "list_images",
         "description": (
-            "List disk images (ISOs, QCOW2) available in the image library. "
-            "Returns image names, types, sizes, and source URIs."
+            "List ALL disk images (ISOs, QCOW2) in the image library (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed."
         ),
         "inputSchema": {
             "type": "object",
@@ -62,7 +62,7 @@ NETWORKING_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of images to return. Omit to retrieve all (auto-paginates).",
+                    "description": "Optional cap on results. Omit to get ALL images (default behavior).",
                 },
             },
         },
@@ -87,8 +87,8 @@ NETWORKING_TOOLS: list[dict] = [
     {
         "name": "list_categories",
         "description": (
-            "List category keys and their values used for resource tagging. "
-            "Categories enable policy-based management (Flow, DR, etc.)."
+            "List ALL category keys and values (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed."
         ),
         "inputSchema": {
             "type": "object",
@@ -99,7 +99,7 @@ NETWORKING_TOOLS: list[dict] = [
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of categories to return. Omit to retrieve all (auto-paginates).",
+                    "description": "Optional cap on results. Omit to get ALL categories (default behavior).",
                 },
             },
         },
@@ -140,10 +140,9 @@ async def handle_list_subnets(client: NutanixClient, arguments: dict[str, Any]) 
     )
 
     subnets = result.get("data", [])
-    metadata = result.get("metadata", {})
     return {
-        "count": len(subnets),
-        "truncated": metadata.get("truncated", False),
+        "totalReturned": len(subnets),
+        "note": "All matching subnets returned. No further pagination needed.",
         "subnets": [
             {
                 "name": s.get("name"),
@@ -204,10 +203,9 @@ async def handle_list_images(client: NutanixClient, arguments: dict[str, Any]) -
     )
 
     images = result.get("data", [])
-    metadata = result.get("metadata", {})
     return {
-        "count": len(images),
-        "truncated": metadata.get("truncated", False),
+        "totalReturned": len(images),
+        "note": "All matching images returned. No further pagination needed.",
         "images": [
             {
                 "name": img.get("name"),
@@ -245,10 +243,9 @@ async def handle_list_categories(client: NutanixClient, arguments: dict[str, Any
     )
 
     categories = result.get("data", [])
-    metadata = result.get("metadata", {})
     return {
-        "count": len(categories),
-        "truncated": metadata.get("truncated", False),
+        "totalReturned": len(categories),
+        "note": "All matching categories returned. No further pagination needed.",
         "categories": [
             {
                 "key": cat.get("key"),

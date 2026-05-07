@@ -10,19 +10,20 @@ VM_TOOLS: list[dict] = [
     {
         "name": "list_vms",
         "description": (
-            "List virtual machines on Nutanix. Returns VM names, UUIDs, power states, "
-            "and resource allocation. Supports OData filtering."
+            "List ALL virtual machines on Nutanix (auto-paginates internally). "
+            "Returns complete results in one call — no manual pagination needed. "
+            "Use 'filter' to narrow results via OData. Use 'limit' only if you want a subset."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "filter": {
                     "type": "string",
-                    "description": ("OData filter expression. Examples: \"name eq 'my-vm'\", \"powerState eq 'ON'\""),
+                    "description": "OData filter expression. Examples: \"name eq 'my-vm'\", \"powerState eq 'ON'\"",
                 },
                 "limit": {
                     "type": "integer",
-                    "description": "Maximum number of VMs to return. Omit to retrieve all (auto-paginates).",
+                    "description": "Optional cap on results. Omit to get ALL VMs (default behavior).",
                 },
             },
         },
@@ -193,7 +194,7 @@ VM_TOOLS: list[dict] = [
 
 
 async def handle_list_vms(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List VMs using v4 vmm API."""
+    """List VMs using v4 vmm API. Auto-paginates — returns all results in one response."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
 
@@ -204,12 +205,10 @@ async def handle_list_vms(client: NutanixClient, arguments: dict[str, Any]) -> d
         max_results=limit,
     )
 
-    # Normalize response
     vms = result.get("data", [])
-    metadata = result.get("metadata", {})
     return {
-        "count": len(vms),
-        "truncated": metadata.get("truncated", False),
+        "totalReturned": len(vms),
+        "note": "All matching VMs returned. No further pagination needed.",
         "vms": [
             {
                 "name": vm.get("name"),
