@@ -33,6 +33,8 @@ ASBUILT_TOOLS: list[dict] = [
         "name": "generate_asbuilt",
         "description": (
             "Generate an infrastructure AsBuilt report from a Nutanix Prism Element cluster. "
+            "Accepts a PE IP address, cluster name, or cluster UUID — cluster names and UUIDs "
+            "are auto-resolved to the PE external IP via Prism Central. "
             "Queries live cluster data and returns a structured Markdown report with tables "
             "and Mermaid topology diagrams. Use 'sections' to include only specific parts. "
             "Available sections: overview, system, hosts, vms, networks, storage, protection_domains, alerts, health."
@@ -42,7 +44,7 @@ ASBUILT_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": "Prism Element CVM IP, cluster external IP, cluster name, or cluster UUID",
                 },
                 "sections": {
                     "type": "array",
@@ -1453,9 +1455,60 @@ def _inline_format(text: str) -> str:
 # ─── Tool Handlers ────────────────────────────────────────────────────────────
 
 
+async def _resolve_pe_host(client: NutanixClient, pe_host: str) -> str:
+    """Resolve a cluster name or UUID to a PE external IP address.
+
+    If pe_host looks like an IP address, returns it as-is.
+    Otherwise, queries Prism Central to find the cluster's external IP.
+    """
+    import re as _re
+
+    # Already an IP address — use directly
+    if _re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", pe_host):
+        return pe_host
+
+    # Looks like a UUID — query by UUID
+    if _re.match(r"^[0-9a-f]{8}-", pe_host):
+        try:
+            sdk = client.sdk
+            response = await sdk.call(sdk.cluster_api.get_cluster_by_id, pe_host)
+            cluster = response.data
+            if cluster and cluster.network and cluster.network.external_address:
+                addr = cluster.network.external_address
+                if hasattr(addr, "ipv4") and addr.ipv4:
+                    return addr.ipv4.value
+        except Exception:
+            pass
+        return pe_host
+
+    # Treat as a cluster name — search via list
+    try:
+        sdk = client.sdk
+        clusters = await sdk.list_all(
+            sdk.cluster_api.list_clusters,
+            _filter=f"name eq '{pe_host}'",
+        )
+        if not clusters:
+            # Try case-insensitive substring match
+            all_clusters = await sdk.list_all(sdk.cluster_api.list_clusters)
+            clusters = [c for c in all_clusters if c.name and pe_host.lower() in c.name.lower()]
+
+        for c in clusters:
+            if c.network and c.network.external_address:
+                addr = c.network.external_address
+                if hasattr(addr, "ipv4") and addr.ipv4 and addr.ipv4.value:
+                    return addr.ipv4.value
+    except Exception:
+        pass
+
+    # Fallback — return as-is and let the caller handle DNS resolution
+    return pe_host
+
+
 async def handle_generate_asbuilt(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Generate a full AsBuilt report from a Prism Element cluster."""
-    pe_host = arguments["pe_host"]
+    raw_pe_host = arguments["pe_host"]
+    pe_host = await _resolve_pe_host(client, raw_pe_host)
     requested = arguments.get("sections") or ALL_SECTIONS
 
     # Validate sections
@@ -1536,6 +1589,9 @@ async def handle_generate_asbuilt(client: NutanixClient, arguments: dict[str, An
         "sectionsIncluded": sections,
         "markdown": markdown,
     }
+
+    if pe_host != raw_pe_host:
+        result["resolvedFrom"] = raw_pe_host
 
     if errors:
         result["sectionErrors"] = errors

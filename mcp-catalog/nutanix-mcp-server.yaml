@@ -126,7 +126,7 @@ tools:
   restore_vm_snapshot:
     description: 'Restore a VM to a previous recovery point (snapshot). This reverts the VM''s disks and configuration to the snapshot state. The VM should be powered off before restore.'
   generate_asbuilt:
-    description: 'Generate an infrastructure AsBuilt report from a Nutanix Prism Element cluster. Queries live cluster data and returns a structured Markdown report with tables and Mermaid topology diagrams. Use ''sections'' to include only specific parts. Available sections: overview, hosts, vms, networks, storage, protection_domains, alerts, health.'
+    description: 'Generate an infrastructure AsBuilt report from a Nutanix Prism Element cluster. Accepts a PE IP address, cluster name, or cluster UUID — cluster names and UUIDs are auto-resolved to the PE external IP via Prism Central. Queries live cluster data and returns a structured Markdown report with tables and Mermaid topology diagrams. Use ''sections'' to include only specific parts. Available sections: overview, system, hosts, vms, networks, storage, protection_domains, alerts, health.'
   export_asbuilt_html:
     description: 'Convert an AsBuilt Markdown report to a self-contained HTML file with print-optimized CSS. Open in a browser and use Ctrl+P / Cmd+P to save as PDF. Includes Mermaid diagram rendering via CDN. Pass the markdown string from generate_asbuilt output.'
   get_project_architecture:

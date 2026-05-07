@@ -1,6 +1,6 @@
 """Tests for AsBuilt report generation tools."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -10,6 +10,7 @@ from nutanix_mcp.tools.asbuilt import (
     _friendly_storage_type,
     _generate_markdown,
     _markdown_to_html_body,
+    _resolve_pe_host,
     _section_protection_domains,
     _section_system,
     _strip_k_prefix,
@@ -677,3 +678,81 @@ class TestAllSections:
 
     def test_section_count(self):
         assert len(ALL_SECTIONS) == 9
+
+
+class TestResolvePeHost:
+    """Test _resolve_pe_host auto-resolution of cluster names/UUIDs to PE IPs."""
+
+    @pytest.mark.asyncio
+    async def test_ip_passthrough(self):
+        """IP addresses should be returned as-is without querying PC."""
+        client = MagicMock()
+        result = await _resolve_pe_host(client, "10.0.0.1")
+        assert result == "10.0.0.1"
+        # Should not call any SDK methods
+        client.sdk.call.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_uuid_resolution(self):
+        """Cluster UUIDs should be resolved via get_cluster_by_id."""
+        client = MagicMock()
+        mock_addr = MagicMock()
+        mock_addr.ipv4 = MagicMock(value="10.1.2.3")
+        mock_cluster = MagicMock()
+        mock_cluster.network = MagicMock(external_address=mock_addr)
+
+        mock_response = MagicMock()
+        mock_response.data = mock_cluster
+        client.sdk.call = AsyncMock(return_value=mock_response)
+
+        result = await _resolve_pe_host(client, "00061ef4-db01-d99a-3baa-7cc2558956c3")
+        assert result == "10.1.2.3"
+
+    @pytest.mark.asyncio
+    async def test_uuid_resolution_fallback(self):
+        """If UUID lookup fails, return the UUID as-is."""
+        client = MagicMock()
+        client.sdk.call = AsyncMock(side_effect=Exception("Not found"))
+
+        result = await _resolve_pe_host(client, "00061ef4-db01-d99a-3baa-7cc2558956c3")
+        assert result == "00061ef4-db01-d99a-3baa-7cc2558956c3"
+
+    @pytest.mark.asyncio
+    async def test_name_resolution(self):
+        """Cluster names should be resolved via list_clusters with filter."""
+        client = MagicMock()
+        mock_addr = MagicMock()
+        mock_addr.ipv4 = MagicMock(value="10.5.6.7")
+        mock_cluster = MagicMock()
+        mock_cluster.name = "ntx-dc1-ahv01"
+        mock_cluster.network = MagicMock(external_address=mock_addr)
+
+        client.sdk.list_all = AsyncMock(return_value=[mock_cluster])
+
+        result = await _resolve_pe_host(client, "ntx-dc1-ahv01")
+        assert result == "10.5.6.7"
+
+    @pytest.mark.asyncio
+    async def test_name_resolution_case_insensitive(self):
+        """Name matching should fall back to case-insensitive substring."""
+        client = MagicMock()
+        mock_addr = MagicMock()
+        mock_addr.ipv4 = MagicMock(value="10.9.8.7")
+        mock_cluster = MagicMock()
+        mock_cluster.name = "NTX-DC1-AHV01"
+        mock_cluster.network = MagicMock(external_address=mock_addr)
+
+        # First call (filter) returns empty, second call (all) returns the cluster
+        client.sdk.list_all = AsyncMock(side_effect=[[], [mock_cluster]])
+
+        result = await _resolve_pe_host(client, "ntx-dc1-ahv01")
+        assert result == "10.9.8.7"
+
+    @pytest.mark.asyncio
+    async def test_name_resolution_fallback(self):
+        """If name lookup fails, return the name as-is."""
+        client = MagicMock()
+        client.sdk.list_all = AsyncMock(return_value=[])
+
+        result = await _resolve_pe_host(client, "nonexistent-cluster")
+        assert result == "nonexistent-cluster"
