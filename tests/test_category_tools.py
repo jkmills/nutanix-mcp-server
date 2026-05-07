@@ -1,12 +1,13 @@
 """Tests for category assignment tools."""
 
-import pytest
 from unittest.mock import AsyncMock
+
+import pytest
 
 from nutanix_mcp.tools.category import (
     handle_assign_category,
-    handle_remove_category,
     handle_list_entities_by_category,
+    handle_remove_category,
 )
 
 
@@ -29,11 +30,14 @@ async def test_assign_category(mock_client):
     }
     mock_client.v4_put.return_value = {"data": {"extId": "vm-uuid-1"}}
 
-    result = await handle_assign_category(mock_client, {
-        "vm_uuid": "vm-uuid-1",
-        "category_key": "Environment",
-        "category_value": "Production",
-    })
+    result = await handle_assign_category(
+        mock_client,
+        {
+            "vm_uuid": "vm-uuid-1",
+            "category_key": "Environment",
+            "category_value": "Production",
+        },
+    )
 
     assert result["status"] == "category_assigned"
     assert result["category"] == "Environment:Production"
@@ -57,11 +61,14 @@ async def test_assign_category_already_exists(mock_client):
         }
     }
 
-    result = await handle_assign_category(mock_client, {
-        "vm_uuid": "vm-uuid-1",
-        "category_key": "Environment",
-        "category_value": "Production",
-    })
+    result = await handle_assign_category(
+        mock_client,
+        {
+            "vm_uuid": "vm-uuid-1",
+            "category_key": "Environment",
+            "category_value": "Production",
+        },
+    )
 
     assert result["status"] == "already_assigned"
     mock_client.v4_put.assert_not_called()
@@ -82,11 +89,14 @@ async def test_remove_category(mock_client):
     }
     mock_client.v4_put.return_value = {"data": {"extId": "vm-uuid-1"}}
 
-    result = await handle_remove_category(mock_client, {
-        "vm_uuid": "vm-uuid-1",
-        "category_key": "Environment",
-        "category_value": "Production",
-    })
+    result = await handle_remove_category(
+        mock_client,
+        {
+            "vm_uuid": "vm-uuid-1",
+            "category_key": "Environment",
+            "category_value": "Production",
+        },
+    )
 
     assert result["status"] == "category_removed"
     assert result["remaining_categories"] == 1
@@ -107,11 +117,14 @@ async def test_remove_category_not_found(mock_client):
         }
     }
 
-    result = await handle_remove_category(mock_client, {
-        "vm_uuid": "vm-uuid-1",
-        "category_key": "Environment",
-        "category_value": "Production",
-    })
+    result = await handle_remove_category(
+        mock_client,
+        {
+            "vm_uuid": "vm-uuid-1",
+            "category_key": "Environment",
+            "category_value": "Production",
+        },
+    )
 
     assert result["status"] == "not_found"
     mock_client.v4_put.assert_not_called()
@@ -127,10 +140,13 @@ async def test_list_entities_by_category(mock_client):
         ]
     }
 
-    result = await handle_list_entities_by_category(mock_client, {
-        "category_key": "Environment",
-        "category_value": "Production",
-    })
+    result = await handle_list_entities_by_category(
+        mock_client,
+        {
+            "category_key": "Environment",
+            "category_value": "Production",
+        },
+    )
 
     assert result["category"] == "Environment:Production"
     assert result["total_matches"] == 2

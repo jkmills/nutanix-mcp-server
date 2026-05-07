@@ -89,9 +89,7 @@ CATEGORY_TOOLS: list[dict] = [
 # ─── Tool Handlers ────────────────────────────────────────────────────────────
 
 
-async def handle_assign_category(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_assign_category(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Assign a category to a VM by updating its category list."""
     vm_uuid = arguments["vm_uuid"]
     category_key = arguments["category_key"]
@@ -107,10 +105,7 @@ async def handle_assign_category(
 
     # Get existing categories and add new one (avoid duplicates)
     categories = vm_data.get("categories", [])
-    already_assigned = any(
-        c.get("key") == category_key and c.get("value") == category_value
-        for c in categories
-    )
+    already_assigned = any(c.get("key") == category_key and c.get("value") == category_value for c in categories)
 
     if already_assigned:
         return {
@@ -149,9 +144,7 @@ async def handle_assign_category(
     }
 
 
-async def handle_remove_category(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_remove_category(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Remove a category from a VM."""
     vm_uuid = arguments["vm_uuid"]
     category_key = arguments["category_key"]
@@ -169,10 +162,7 @@ async def handle_remove_category(
     original_count = len(categories)
 
     # Remove matching category
-    categories = [
-        c for c in categories
-        if not (c.get("key") == category_key and c.get("value") == category_value)
-    ]
+    categories = [c for c in categories if not (c.get("key") == category_key and c.get("value") == category_value)]
 
     if len(categories) == original_count:
         return {
@@ -208,18 +198,14 @@ async def handle_remove_category(
     }
 
 
-async def handle_list_entities_by_category(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_entities_by_category(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List VMs matching a category key:value pair."""
     category_key = arguments["category_key"]
     category_value = arguments["category_value"]
     limit = arguments.get("limit", 50)
 
     # Use OData filter on VMs endpoint to find matching entities
-    filter_expr = (
-        f"categories/any(c:c/key eq '{category_key}' and c/value eq '{category_value}')"
-    )
+    filter_expr = f"categories/any(c:c/key eq '{category_key}' and c/value eq '{category_value}')"
 
     result = await client.v4_list(
         namespace="vmm",
@@ -232,12 +218,14 @@ async def handle_list_entities_by_category(
 
     formatted = []
     for vm in vms:
-        formatted.append({
-            "vm_uuid": vm.get("extId", ""),
-            "name": vm.get("name", ""),
-            "power_state": vm.get("powerState", ""),
-            "cluster": vm.get("cluster", {}).get("extId", ""),
-        })
+        formatted.append(
+            {
+                "vm_uuid": vm.get("extId", ""),
+                "name": vm.get("name", ""),
+                "power_state": vm.get("powerState", ""),
+                "cluster": vm.get("cluster", {}).get("extId", ""),
+            }
+        )
 
     return {
         "category": f"{category_key}:{category_value}",

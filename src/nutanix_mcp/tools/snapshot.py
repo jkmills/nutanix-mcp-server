@@ -82,9 +82,7 @@ SNAPSHOT_TOOLS: list[dict] = [
 # ─── Tool Handlers ────────────────────────────────────────────────────────────
 
 
-async def handle_snapshot_vm(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_snapshot_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Create a VM recovery point (snapshot)."""
     vm_uuid = arguments["vm_uuid"]
     name = arguments.get("name", "")
@@ -122,9 +120,7 @@ async def handle_snapshot_vm(
     }
 
 
-async def handle_list_vm_snapshots(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_vm_snapshots(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List recovery points for a specific VM."""
     vm_uuid = arguments["vm_uuid"]
     limit = arguments.get("limit", 20)
@@ -141,14 +137,16 @@ async def handle_list_vm_snapshots(
 
     formatted = []
     for snap in snapshots:
-        formatted.append({
-            "recovery_point_id": snap.get("extId", ""),
-            "name": snap.get("name", ""),
-            "status": snap.get("status", ""),
-            "creation_time": snap.get("creationTime", ""),
-            "expiration_time": snap.get("expirationTime", ""),
-            "recovery_point_type": snap.get("recoveryPointType", ""),
-        })
+        formatted.append(
+            {
+                "recovery_point_id": snap.get("extId", ""),
+                "name": snap.get("name", ""),
+                "status": snap.get("status", ""),
+                "creation_time": snap.get("creationTime", ""),
+                "expiration_time": snap.get("expirationTime", ""),
+                "recovery_point_type": snap.get("recoveryPointType", ""),
+            }
+        )
 
     return {
         "vm_uuid": vm_uuid,
@@ -157,9 +155,7 @@ async def handle_list_vm_snapshots(
     }
 
 
-async def handle_restore_vm_snapshot(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_restore_vm_snapshot(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Restore a VM from a recovery point."""
     recovery_point_id = arguments["recovery_point_id"]
     vm_uuid = arguments["vm_uuid"]

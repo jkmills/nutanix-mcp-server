@@ -1,12 +1,13 @@
 """Tests for centralized alert management tools."""
 
-import pytest
 from unittest.mock import AsyncMock
 
+import pytest
+
 from nutanix_mcp.tools.alert import (
-    handle_list_alerts,
-    handle_get_alert,
     handle_acknowledge_alert,
+    handle_get_alert,
+    handle_list_alerts,
 )
 
 
@@ -29,9 +30,7 @@ async def test_list_alerts_default(mock_client):
                 "isAcknowledged": False,
                 "creationTime": "2026-05-07T10:00:00Z",
                 "lastUpdatedTime": "2026-05-07T10:05:00Z",
-                "affectedEntities": [
-                    {"type": "host", "name": "host-01", "extId": "host-uuid-1"}
-                ],
+                "affectedEntities": [{"type": "host", "name": "host-01", "extId": "host-uuid-1"}],
                 "sourceClusterUUID": "cluster-uuid-1",
             },
         ]
@@ -50,10 +49,13 @@ async def test_list_alerts_with_severity_filter(mock_client):
     """Test listing alerts filtered by severity."""
     mock_client.v4_list.return_value = {"data": []}
 
-    result = await handle_list_alerts(mock_client, {
-        "severity": "WARNING",
-        "limit": 10,
-    })
+    await handle_list_alerts(
+        mock_client,
+        {
+            "severity": "WARNING",
+            "limit": 10,
+        },
+    )
 
     call_args = mock_client.v4_list.call_args
     filter_used = call_args.kwargs["filter"]
@@ -107,10 +109,13 @@ async def test_acknowledge_alert(mock_client):
     }
     mock_client.v4_put.return_value = {"data": {"extId": "alert-uuid-123"}}
 
-    result = await handle_acknowledge_alert(mock_client, {
-        "alert_uuid": "alert-uuid-123",
-        "action": "ACKNOWLEDGE",
-    })
+    result = await handle_acknowledge_alert(
+        mock_client,
+        {
+            "alert_uuid": "alert-uuid-123",
+            "action": "ACKNOWLEDGE",
+        },
+    )
 
     assert result["status"] == "alert_acknowledged"
     assert result["alert_uuid"] == "alert-uuid-123"
@@ -132,10 +137,13 @@ async def test_resolve_alert(mock_client):
     }
     mock_client.v4_put.return_value = {"data": {"extId": "alert-uuid-456"}}
 
-    result = await handle_acknowledge_alert(mock_client, {
-        "alert_uuid": "alert-uuid-456",
-        "action": "RESOLVE",
-    })
+    result = await handle_acknowledge_alert(
+        mock_client,
+        {
+            "alert_uuid": "alert-uuid-456",
+            "action": "RESOLVE",
+        },
+    )
 
     assert result["status"] == "alert_resolved"
     put_call = mock_client.v4_put.call_args

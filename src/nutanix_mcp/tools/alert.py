@@ -1,6 +1,6 @@
 """Centralized alert management tools using Nutanix v4 prism namespace."""
 
-from typing import Any, Optional
+from typing import Any
 
 from nutanix_mcp.client import NutanixClient
 
@@ -87,9 +87,7 @@ ALERT_TOOLS: list[dict] = [
 # ─── Tool Handlers ────────────────────────────────────────────────────────────
 
 
-async def handle_list_alerts(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_list_alerts(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List alerts with optional filtering."""
     severity = arguments.get("severity")
     resolved = arguments.get("resolved", False)
@@ -123,22 +121,21 @@ async def handle_list_alerts(
     formatted = []
     for alert in alerts:
         affected = alert.get("affectedEntities", [])
-        entity_summary = [
-            f"{e.get('type', 'unknown')}:{e.get('name', e.get('extId', '?'))}"
-            for e in affected[:3]
-        ]
+        entity_summary = [f"{e.get('type', 'unknown')}:{e.get('name', e.get('extId', '?'))}" for e in affected[:3]]
 
-        formatted.append({
-            "alert_uuid": alert.get("extId", ""),
-            "title": alert.get("title", ""),
-            "severity": alert.get("severity", ""),
-            "is_resolved": alert.get("isResolved", False),
-            "is_acknowledged": alert.get("isAcknowledged", False),
-            "creation_time": alert.get("creationTime", ""),
-            "last_updated_time": alert.get("lastUpdatedTime", ""),
-            "affected_entities": entity_summary,
-            "cluster": alert.get("sourceClusterUUID", ""),
-        })
+        formatted.append(
+            {
+                "alert_uuid": alert.get("extId", ""),
+                "title": alert.get("title", ""),
+                "severity": alert.get("severity", ""),
+                "is_resolved": alert.get("isResolved", False),
+                "is_acknowledged": alert.get("isAcknowledged", False),
+                "creation_time": alert.get("creationTime", ""),
+                "last_updated_time": alert.get("lastUpdatedTime", ""),
+                "affected_entities": entity_summary,
+                "cluster": alert.get("sourceClusterUUID", ""),
+            }
+        )
 
     return {
         "total_alerts": len(formatted),
@@ -147,9 +144,7 @@ async def handle_list_alerts(
     }
 
 
-async def handle_get_alert(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_get_alert(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get full details of a specific alert."""
     alert_uuid = arguments["alert_uuid"]
 
@@ -190,9 +185,7 @@ async def handle_get_alert(
     }
 
 
-async def handle_acknowledge_alert(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_acknowledge_alert(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Acknowledge or resolve an alert."""
     alert_uuid = arguments["alert_uuid"]
     action = arguments.get("action", "ACKNOWLEDGE")
@@ -213,7 +206,7 @@ async def handle_acknowledge_alert(
     if etag:
         headers["If-Match"] = etag
 
-    result = await client.v4_put(
+    await client.v4_put(
         namespace="prism",
         path=f"config/alerts/{alert_uuid}",
         body=body,

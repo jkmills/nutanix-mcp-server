@@ -1,12 +1,13 @@
 """Tests for VM snapshot tools."""
 
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, patch
 
 from nutanix_mcp.tools.snapshot import (
-    handle_snapshot_vm,
     handle_list_vm_snapshots,
     handle_restore_vm_snapshot,
+    handle_snapshot_vm,
 )
 
 
@@ -26,11 +27,14 @@ async def test_snapshot_vm(mock_client):
         "taskExtId": "task-uuid-456",
     }
 
-    result = await handle_snapshot_vm(mock_client, {
-        "vm_uuid": "vm-uuid-abc",
-        "name": "pre-update-snapshot",
-        "expiration_days": 7,
-    })
+    result = await handle_snapshot_vm(
+        mock_client,
+        {
+            "vm_uuid": "vm-uuid-abc",
+            "name": "pre-update-snapshot",
+            "expiration_days": 7,
+        },
+    )
 
     assert result["status"] == "snapshot_initiated"
     assert result["recovery_point_id"] == "rp-uuid-123"
@@ -72,10 +76,13 @@ async def test_list_vm_snapshots(mock_client):
         ]
     }
 
-    result = await handle_list_vm_snapshots(mock_client, {
-        "vm_uuid": "vm-uuid-abc",
-        "limit": 10,
-    })
+    result = await handle_list_vm_snapshots(
+        mock_client,
+        {
+            "vm_uuid": "vm-uuid-abc",
+            "limit": 10,
+        },
+    )
 
     assert result["vm_uuid"] == "vm-uuid-abc"
     assert result["total_snapshots"] == 2
@@ -97,10 +104,13 @@ async def test_restore_vm_snapshot(mock_client):
         },
     }
 
-    result = await handle_restore_vm_snapshot(mock_client, {
-        "recovery_point_id": "rp-uuid-123",
-        "vm_uuid": "vm-uuid-abc",
-    })
+    result = await handle_restore_vm_snapshot(
+        mock_client,
+        {
+            "recovery_point_id": "rp-uuid-123",
+            "vm_uuid": "vm-uuid-abc",
+        },
+    )
 
     assert result["status"] == "restore_initiated"
     assert result["recovery_point_id"] == "rp-uuid-123"
