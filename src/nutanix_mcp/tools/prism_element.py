@@ -52,8 +52,7 @@ PE_TOOLS: list[dict] = [
     {
         "name": "pe_list_hosts",
         "description": (
-            "List hypervisor hosts on a Prism Element cluster. "
-            "Returns host names, IPs, hardware specs, and CVM info."
+            "List hypervisor hosts on a Prism Element cluster. Returns host names, IPs, hardware specs, and CVM info."
         ),
         "inputSchema": {
             "type": "object",
@@ -86,8 +85,7 @@ PE_TOOLS: list[dict] = [
     {
         "name": "pe_list_storage_pools",
         "description": (
-            "List storage pools on a Prism Element cluster. "
-            "Returns pool names, capacity, and disk composition."
+            "List storage pools on a Prism Element cluster. Returns pool names, capacity, and disk composition."
         ),
         "inputSchema": {
             "type": "object",
@@ -120,8 +118,7 @@ PE_TOOLS: list[dict] = [
     {
         "name": "pe_list_alerts",
         "description": (
-            "List alerts on a Prism Element cluster. "
-            "Returns alert titles, severity, timestamps, and affected entities."
+            "List alerts on a Prism Element cluster. Returns alert titles, severity, timestamps, and affected entities."
         ),
         "inputSchema": {
             "type": "object",
@@ -163,9 +160,7 @@ PE_TOOLS: list[dict] = [
     },
     {
         "name": "pe_list_snapshots",
-        "description": (
-            "List snapshots for a protection domain on a Prism Element cluster."
-        ),
+        "description": ("List snapshots for a protection domain on a Prism Element cluster."),
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -187,9 +182,7 @@ PE_TOOLS: list[dict] = [
 # ─── Tool Handlers ────────────────────────────────────────────────────────────
 
 
-async def handle_pe_get_cluster_info(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_pe_get_cluster_info(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Get cluster info from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
     result = await client.pe_get(pe_host, "cluster")
@@ -205,9 +198,7 @@ async def handle_pe_get_cluster_info(
     }
 
 
-async def handle_pe_list_vms(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_pe_list_vms(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List VMs from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
     count = arguments.get("count")
@@ -232,9 +223,7 @@ async def handle_pe_list_vms(
     }
 
 
-async def handle_pe_list_hosts(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_pe_list_hosts(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List hosts from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
     result = await client.pe_list(pe_host, "hosts")
@@ -259,9 +248,7 @@ async def handle_pe_list_hosts(
     }
 
 
-async def handle_pe_list_containers(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_pe_list_containers(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List storage containers from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
     result = await client.pe_list(pe_host, "containers")
@@ -284,9 +271,7 @@ async def handle_pe_list_containers(
     }
 
 
-async def handle_pe_list_storage_pools(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_pe_list_storage_pools(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List storage pools from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
     result = await client.pe_list(pe_host, "storage_pools")
@@ -307,9 +292,7 @@ async def handle_pe_list_storage_pools(
     }
 
 
-async def handle_pe_list_disks(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_pe_list_disks(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List physical disks from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
     result = await client.pe_list(pe_host, "disks")
@@ -333,9 +316,7 @@ async def handle_pe_list_disks(
     }
 
 
-async def handle_pe_list_alerts(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_pe_list_alerts(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List alerts from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
     resolved = arguments.get("resolved", False)
@@ -365,9 +346,7 @@ async def handle_pe_list_alerts(
     }
 
 
-async def handle_pe_list_protection_domains(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_pe_list_protection_domains(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List protection domains from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
     result = await client.pe_list(pe_host, "protection_domains")
@@ -388,16 +367,12 @@ async def handle_pe_list_protection_domains(
     }
 
 
-async def handle_pe_list_snapshots(
-    client: NutanixClient, arguments: dict[str, Any]
-) -> dict[str, Any]:
+async def handle_pe_list_snapshots(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List snapshots for a protection domain from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
     pd_name = arguments["protection_domain"]
 
-    result = await client.pe_get(
-        pe_host, f"protection_domains/{pd_name}/dr_snapshots"
-    )
+    result = await client.pe_get(pe_host, f"protection_domains/{pd_name}/dr_snapshots")
     entities = result.get("entities", [])
 
     return {
