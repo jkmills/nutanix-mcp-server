@@ -3,7 +3,7 @@ name = "nutanix-mcp-server"
 version = "0.1.0"
 description = "MCP server for Nutanix Prism Central & Prism Element APIs"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "AGPL-3.0-or-later" }
 requires-python = ">=3.10"
 authors = []
 keywords = ["mcp", "nutanix", "prism-central", "prism-element", "ai", "llm"]
