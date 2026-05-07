@@ -570,4 +570,23 @@ tools:
   - name: vm_uuid
     type: string
     desc: The UUID of the VM to restore.
-___BEGIN___COMMAND_DONE_MARKER___0
+- name: generate_asbuilt
+  description: Generate an infrastructure AsBuilt report from a Nutanix Prism Element cluster. Queries live cluster data and returns a structured Markdown report with tables and Mermaid topology diagrams. Use 'sections' to include only specific parts. Available sections: overview, hosts, vms, networks, storage, protection_domains, alerts, health.
+  arguments:
+  - name: pe_host
+    type: string
+    desc: Prism Element CVM IP address or hostname
+  - name: sections
+    type: array
+    desc: Which sections to include in the report. Defaults to all sections if omitted. Options: overview, hosts, vms, networks, storage, protection_domains, alerts, health
+    optional: true
+- name: export_asbuilt_html
+  description: Convert an AsBuilt Markdown report to a self-contained HTML file with print-optimized CSS. Open in a browser and use Ctrl+P / Cmd+P to save as PDF. Includes Mermaid diagram rendering via CDN. Pass the markdown string from generate_asbuilt output.
+  arguments:
+  - name: markdown
+    type: string
+    desc: The Markdown report content from generate_asbuilt
+  - name: title
+    type: string
+    desc: Report title (defaults to 'Nutanix AsBuilt Report')
+    optional: true

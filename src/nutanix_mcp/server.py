@@ -29,6 +29,7 @@ from nutanix_mcp.resources import (
 )
 from nutanix_mcp.tools import get_all_tools
 from nutanix_mcp.tools.alert import ALERT_HANDLERS
+from nutanix_mcp.tools.asbuilt import ASBUILT_HANDLERS
 from nutanix_mcp.tools.category import CATEGORY_HANDLERS
 from nutanix_mcp.tools.cluster import CLUSTER_HANDLERS
 from nutanix_mcp.tools.networking import NETWORKING_HANDLERS
@@ -47,6 +48,7 @@ ALL_HANDLERS: dict[str, Any] = {
     **ALERT_HANDLERS,
     **CATEGORY_HANDLERS,
     **SNAPSHOT_HANDLERS,
+    **ASBUILT_HANDLERS,
 }
 
 
