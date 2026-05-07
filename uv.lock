@@ -87,11 +87,11 @@ wheels = [
 
 [[package]]
 name = "certifi"
-version = "2025.4.26"
+version = "2023.11.17"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e8/9e/c05b3920a3b7d20d3d3310465f50348e5b3694f4f88c6daf736eef3024c4/certifi-2025.4.26.tar.gz", hash = "sha256:0a816057ea3cdefcef70270d2c515e4506bbc954f417fa5ade2021213bb8f0c6", size = 160705, upload-time = "2025-04-26T02:12:29.51Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d4/91/c89518dd4fe1f3a4e3f6ab7ff23cb00ef2e8c9adf99dacc618ad5e068e28/certifi-2023.11.17.tar.gz", hash = "sha256:9b469f3a900bf28dc19b8cfbf8019bf47f7fdd1a65a1d4ffb98fc14166beb4d1", size = 163637, upload-time = "2023-11-18T02:54:02.397Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4a/7e/3db2bd1b1f9e95f7cddca6d6e75e2f2bd9f51b1246e546d88addca0106bd/certifi-2025.4.26-py3-none-any.whl", hash = "sha256:30350364dfe371162649852c63336a15c70c6510c2ad5015b21c2345311805f3", size = 159618, upload-time = "2025-04-26T02:12:27.662Z" },
+    { url = "https://files.pythonhosted.org/packages/64/62/428ef076be88fa93716b576e4a01f919d25968913e817077a386fcbe4f42/certifi-2023.11.17-py3-none-any.whl", hash = "sha256:e036ab49d5b79556f99cfc2d9320b34cfbe5be05c5871b51de9329f0603b0474", size = 162530, upload-time = "2023-11-18T02:54:00.083Z" },
 ]
 
 [[package]]
@@ -540,7 +540,7 @@ wheels = [
 
 [[package]]
 name = "ntnx-clustermgmt-py-client"
-version = "4.2.2"
+version = "4.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -549,14 +549,14 @@ dependencies = [
     { name = "six" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9b/5e/e7e67172ffde0dcdf9a3804acfca023515b5ab22ebabb225a63477212466/ntnx_clustermgmt_py_client-4.2.2.tar.gz", hash = "sha256:c50188a8def14cbd0ad2bcb0a4b0b66917c929204cb8bef8745bed26cfcfbf56", size = 282819, upload-time = "2026-03-24T16:01:02.833Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6f/8e/7326b1fe200c4ef2beb86d7e57c8a554e15401bd9fb9c6ff711482f36508/ntnx_clustermgmt_py_client-4.1.1.tar.gz", hash = "sha256:d546e3996cae8f63e46cae5ffb1167ec2eec94714fc5a709ac5a75da35135d3b", size = 261302, upload-time = "2025-06-27T21:36:36.717Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/11/af/cbbc37c9b02f98be500e0e568477dc9da9ffb5e8081979dbde906977613f/ntnx_clustermgmt_py_client-4.2.2-py3-none-any.whl", hash = "sha256:011c8c036fc9cdf9ab985e56c09bd255ea14907271f4bdd0c3596747fb9fede0", size = 1078647, upload-time = "2026-03-24T16:01:01.421Z" },
+    { url = "https://files.pythonhosted.org/packages/c1/ab/dcc6737ab1505700eaba507dac01215678aaa2c9b60b2567975b8e10f98c/ntnx_clustermgmt_py_client-4.1.1-py3-none-any.whl", hash = "sha256:7c6b1cc8c05b0c812bbdf53bad73d9ac4b8cadfa719f5af03c979b5cbbe7b54f", size = 948662, upload-time = "2025-06-27T21:36:35.56Z" },
 ]
 
 [[package]]
 name = "ntnx-dataprotection-py-client"
-version = "4.3.1"
+version = "4.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -565,14 +565,14 @@ dependencies = [
     { name = "six" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/15/b3/22dec5cf1c8aeef851889367a8d9d8c79e54acfc8bdc8306b690cbb5b81e/ntnx_dataprotection_py_client-4.3.1.tar.gz", hash = "sha256:4547c6e561dbb8bde3393a294cc0381e96d8475660b9c3e753c6b8a02ac09065", size = 147114, upload-time = "2026-03-24T16:02:11.92Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bf/03/034d4f73766eace1df0ab01b16a7eea993c5b063121f76e97400e68bc3f6/ntnx_dataprotection_py_client-4.1.1.tar.gz", hash = "sha256:90c63645ba8a0889deffe9b86d653ca878535f32e96255721436ba75c8897fb9", size = 100462, upload-time = "2025-06-27T21:37:40.274Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7a/b6/e784f413b2df72cabc22d86c1924dda59aa32249af196349e5b2f189e7f1/ntnx_dataprotection_py_client-4.3.1-py3-none-any.whl", hash = "sha256:b379290208421782ac23efaf4399a052967c677b6b3df6707700bb66ef72d748", size = 565843, upload-time = "2026-03-24T16:02:10.358Z" },
+    { url = "https://files.pythonhosted.org/packages/89/1c/ac27340d3f0ac1da4de1df464750263b10676646be1cfa2f8189ed31557a/ntnx_dataprotection_py_client-4.1.1-py3-none-any.whl", hash = "sha256:7747d816e9d2c789a52344791ba6dfd8310abb101762f444fcf1af1603509dfd", size = 350127, upload-time = "2025-06-27T21:37:38.765Z" },
 ]
 
 [[package]]
 name = "ntnx-networking-py-client"
-version = "4.3.1"
+version = "4.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -581,14 +581,14 @@ dependencies = [
     { name = "six" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/55/73/6efad34bc6740eb8aaf055d60d425a1c8e1ac6c69f6c74d9c96454a481ac/ntnx_networking_py_client-4.3.1.tar.gz", hash = "sha256:fe7e58b18806de52133e19be0f5c809116e95d6e473b0ecc93ece6f968f747df", size = 247508, upload-time = "2026-03-24T16:02:00.461Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9b/70/638f479c9594ec4e03e8fa4fd7fd2ccf789ac81b888bc3bfef065fad7305/ntnx_networking_py_client-4.1.1.tar.gz", hash = "sha256:f0649b259f8c348e9d4992e0fc4ea510e2b8873d132ec2e8dc300f7014e17e66", size = 227672, upload-time = "2025-06-27T21:37:29.341Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f2/ee/b2b17c24591afeee7324609b4fb985f3901fee605ab8cc68e2aa73ceb364/ntnx_networking_py_client-4.3.1-py3-none-any.whl", hash = "sha256:ae37a64785341fc7396c2517e8b5a46540a6c0ee4de78573fa5280dc9890e00c", size = 1040356, upload-time = "2026-03-24T16:01:58.879Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/d7/7eeeb4e317a8bb8458c10f9793e3e5adbe1790207591a1da5fce8c78bd12/ntnx_networking_py_client-4.1.1-py3-none-any.whl", hash = "sha256:e1a141456fb8f9ca0b05c3fcd594b92fc7261afb986fd4be585a4bcc0950678e", size = 926652, upload-time = "2025-06-27T21:37:27.697Z" },
 ]
 
 [[package]]
 name = "ntnx-prism-py-client"
-version = "4.3.1"
+version = "4.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -597,14 +597,14 @@ dependencies = [
     { name = "six" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e1/83/ddc97328f76212254deee378e20a5c02483bcb70c08231d639c279c60f91/ntnx_prism_py_client-4.3.1.tar.gz", hash = "sha256:461c175df19e6aa67a9669a4604efbb8cb91d69ca362256456cbc0fbd271bdf5", size = 161744, upload-time = "2026-03-24T16:00:50.37Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/33/8cd1be70f1a1e1045752e13029cfd7ea0a2b80d14a84ababb1724a0b09db/ntnx_prism_py_client-4.1.1.tar.gz", hash = "sha256:fea132b1f58f34846949d06476a770ce8fbd4e6d3fbf80b5219b254b91ec65a6", size = 135986, upload-time = "2025-06-27T21:36:25.703Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a2/4c/178928453407c94682391b52cef18ec0d50a6d387593604c19d0547eaba1/ntnx_prism_py_client-4.3.1-py3-none-any.whl", hash = "sha256:f5470211e9786dd094a65c4ea55c98af05663ec34b02a34aa107d71416dcdfc5", size = 650247, upload-time = "2026-03-24T16:00:49.132Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/fc/1d1c300ec9d2380a4d0c960914d9585ef0c7efd85b86defbe72504587337/ntnx_prism_py_client-4.1.1-py3-none-any.whl", hash = "sha256:4599d1159efe5d2cf3d8454dc4dc73fce0b52c64b461dedff3d79f7b0cb65134", size = 495133, upload-time = "2025-06-27T21:36:24.194Z" },
 ]
 
 [[package]]
 name = "ntnx-vmm-py-client"
-version = "4.2.2"
+version = "4.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -613,9 +613,9 @@ dependencies = [
     { name = "six" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b6/b1/d98f4bfcb8905ea094338ac16993099016ef41c466d923fafac5d5693846/ntnx_vmm_py_client-4.2.2.tar.gz", hash = "sha256:dbaf8b442165eaaa1e860f6d0b13159eee6336df7d75f157f67c6452bb4c64b2", size = 379863, upload-time = "2026-03-24T16:00:38.99Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/f8/64/a90587462cf28afc539c6b1fce18dbfebcc9b36c1bfec22d4a61726f13fe/ntnx_vmm_py_client-4.1.1.tar.gz", hash = "sha256:8a66f385d4ba387c4be5f3a04b507f48347d35820f112c58f91dfb77110a6159", size = 310267, upload-time = "2025-06-27T21:36:14.286Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b0/39/8a456b2b2ede848e91b71ad129c2d76785323b0169aae9c5b67abc6ad7e0/ntnx_vmm_py_client-4.2.2-py3-none-any.whl", hash = "sha256:2902dd97a0def08ef666722957279514ea1ffa093fc347b4f84f9c4397d0be6f", size = 1890310, upload-time = "2026-03-24T16:00:37.648Z" },
+    { url = "https://files.pythonhosted.org/packages/50/89/bf065a5a709ebeffb90916937c03fdc1d9ac371cb9c6e015fef331cc9690/ntnx_vmm_py_client-4.1.1-py3-none-any.whl", hash = "sha256:80a32bae9abb9837e0d7292645bd48af8f1a020325d2eac000da42e5a78f8d1c", size = 1380550, upload-time = "2025-06-27T21:36:13.134Z" },
 ]
 
 [[package]]
@@ -650,11 +650,11 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27.0,<1.0" },
     { name = "mcp", specifier = ">=1.2.0,<2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10.0" },
-    { name = "ntnx-clustermgmt-py-client", specifier = ">=4.2.0" },
-    { name = "ntnx-dataprotection-py-client", specifier = ">=4.0.0" },
-    { name = "ntnx-networking-py-client", specifier = ">=4.2.0" },
-    { name = "ntnx-prism-py-client", specifier = ">=4.2.0" },
-    { name = "ntnx-vmm-py-client", specifier = ">=4.2.0" },
+    { name = "ntnx-clustermgmt-py-client", specifier = ">=4.0.0,<4.2" },
+    { name = "ntnx-dataprotection-py-client", specifier = ">=4.0.0,<4.2" },
+    { name = "ntnx-networking-py-client", specifier = ">=4.0.0,<4.2" },
+    { name = "ntnx-prism-py-client", specifier = ">=4.0.0,<4.2" },
+    { name = "ntnx-vmm-py-client", specifier = ">=4.0.0,<4.2" },
     { name = "pydantic", specifier = ">=2.0.0,<3.0" },
     { name = "pydantic-settings", specifier = ">=2.0.0,<3.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
