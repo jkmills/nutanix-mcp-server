@@ -83,37 +83,32 @@ SNAPSHOT_TOOLS: list[dict] = [
 
 
 async def handle_snapshot_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Create a VM recovery point (snapshot)."""
+    """Create a VM recovery point (snapshot) using official Nutanix SDK."""
+    from ntnx_dataprotection_py_client.models.dataprotection.v4.config.RecoveryPoint import RecoveryPoint
+    from ntnx_dataprotection_py_client.models.dataprotection.v4.config.VmRecoveryPoint import VmRecoveryPoint
+
     vm_uuid = arguments["vm_uuid"]
     name = arguments.get("name", "")
     expiration_days = arguments.get("expiration_days", 30)
+    sdk = client.sdk
 
-    body: dict[str, Any] = {
-        "vmRecoveryPoints": [
-            {
-                "vmExtId": vm_uuid,
-            }
-        ],
-    }
+    vm_rp = VmRecoveryPoint()
+    vm_rp.vm_ext_id = vm_uuid
 
+    rp = RecoveryPoint()
+    rp.vm_recovery_points = [vm_rp]
     if name:
-        body["name"] = name
-
+        rp.name = name
     if expiration_days:
-        body["expirationTime"] = f"P{expiration_days}D"
+        rp.expiration_time = f"P{expiration_days}D"
 
-    result = await client.v4_post(
-        namespace="dataprotection",
-        path="config/recovery-points",
-        body=body,
-    )
-
-    data = result.get("data", result)
-    task_id = data.get("extId") or result.get("taskExtId", "")
+    response = await sdk.call(sdk.recovery_point_api.create_recovery_point, rp)
+    data = response.data
+    task_id = data.ext_id if data else ""
 
     return {
         "status": "snapshot_initiated",
-        "recovery_point_id": data.get("extId", ""),
+        "recovery_point_id": data.ext_id if data else "",
         "task_id": task_id,
         "vm_uuid": vm_uuid,
         "name": name or "(auto-generated)",
@@ -121,30 +116,27 @@ async def handle_snapshot_vm(client: NutanixClient, arguments: dict[str, Any]) -
 
 
 async def handle_list_vm_snapshots(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List recovery points for a specific VM."""
+    """List recovery points for a specific VM using official Nutanix SDK."""
     vm_uuid = arguments["vm_uuid"]
     limit = arguments.get("limit", 20)
+    sdk = client.sdk
 
-    # Filter recovery points that contain the specified VM
-    result = await client.v4_list(
-        namespace="dataprotection",
-        path="config/recovery-points",
-        filter=f"vmRecoveryPoints/any(v:v/vmExtId eq '{vm_uuid}')",
-        top=limit,
+    filter_expr = f"vmRecoveryPoints/any(v:v/vmExtId eq '{vm_uuid}')"
+    response = await sdk.call(
+        sdk.recovery_point_api.list_recovery_points, _limit=limit, _filter=filter_expr
     )
-
-    snapshots = result.get("data", [])
+    snapshots = response.data or []
 
     formatted = []
     for snap in snapshots:
         formatted.append(
             {
-                "recovery_point_id": snap.get("extId", ""),
-                "name": snap.get("name", ""),
-                "status": snap.get("status", ""),
-                "creation_time": snap.get("creationTime", ""),
-                "expiration_time": snap.get("expirationTime", ""),
-                "recovery_point_type": snap.get("recoveryPointType", ""),
+                "recovery_point_id": snap.ext_id or "",
+                "name": snap.name or "",
+                "status": snap.status or "",
+                "creation_time": snap.creation_time or "",
+                "expiration_time": snap.expiration_time or "",
+                "recovery_point_type": snap.recovery_point_type or "",
             }
         )
 
@@ -156,31 +148,19 @@ async def handle_list_vm_snapshots(client: NutanixClient, arguments: dict[str, A
 
 
 async def handle_restore_vm_snapshot(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Restore a VM from a recovery point."""
+    """Restore a VM from a recovery point using official Nutanix SDK."""
     recovery_point_id = arguments["recovery_point_id"]
-    vm_uuid = arguments["vm_uuid"]
+    sdk = client.sdk
 
-    body = {
-        "vmRecoveryPointRestoreOverrides": [
-            {
-                "vmExtId": vm_uuid,
-            }
-        ],
-    }
-
-    result = await client.v4_post(
-        namespace="dataprotection",
-        path=f"config/recovery-points/{recovery_point_id}/$actions/restore",
-        body=body,
-    )
-
-    data = result.get("data", result)
-    task_id = data.get("extId") or result.get("taskExtId", "")
+    # Pass None body to restore all VMs in the recovery point
+    response = await sdk.call(sdk.recovery_point_api.restore_recovery_point, recovery_point_id)
+    data = response.data
+    task_id = data.ext_id if data else ""
 
     return {
         "status": "restore_initiated",
         "recovery_point_id": recovery_point_id,
-        "vm_uuid": vm_uuid,
+        "vm_uuid": arguments["vm_uuid"],
         "task_id": task_id,
     }
 

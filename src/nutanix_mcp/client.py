@@ -7,6 +7,7 @@ from typing import Any, Optional
 import httpx
 
 from nutanix_mcp.config import Settings
+from nutanix_mcp.sdk_client import NutanixSDKClient
 
 
 class NutanixAPIError(Exception):
@@ -62,6 +63,7 @@ class NutanixClient:
         self.settings = settings
         self._client: Optional[httpx.AsyncClient] = None
         self._pe_clients: dict[str, httpx.AsyncClient] = {}
+        self.sdk = NutanixSDKClient(settings)
 
     async def _get_client(self) -> httpx.AsyncClient:
         """Get or create the HTTP client."""
@@ -134,44 +136,6 @@ class NutanixClient:
         self._handle_error(response)
         return {}  # unreachable
 
-    async def v4_post(
-        self,
-        namespace: str,
-        path: str,
-        body: dict[str, Any],
-        params: Optional[dict[str, str]] = None,
-    ) -> dict[str, Any]:
-        """POST request against v4 API."""
-        client = await self._get_client()
-        url = f"/{namespace}/{self.V4_VERSION}/{path}"
-
-        for attempt in range(self.MAX_RETRIES + 1):
-            try:
-                response = await client.post(url, json=body, params=params)
-            except httpx.ConnectError as e:
-                raise NutanixAPIError(
-                    f"Connection failed to {self.settings.host}:{self.settings.port}",
-                    details=str(e),
-                )
-            except httpx.TimeoutException as e:
-                raise NutanixAPIError(
-                    f"Request timed out after {self.settings.timeout}s",
-                    details=str(e),
-                )
-
-            if response.status_code == 429 and attempt < self.MAX_RETRIES:
-                wait = self.RETRY_BACKOFF_BASE * (2**attempt)
-                await asyncio.sleep(wait)
-                continue
-
-            if response.status_code >= 400:
-                self._handle_error(response)
-
-            return response.json()
-
-        self._handle_error(response)
-        return {}  # unreachable
-
     async def v4_put(
         self,
         namespace: str,
@@ -205,45 +169,6 @@ class NutanixClient:
             if response.status_code >= 400:
                 self._handle_error(response)
 
-            return response.json()
-
-        self._handle_error(response)
-        return {}  # unreachable
-
-    async def v4_delete(
-        self,
-        namespace: str,
-        path: str,
-    ) -> dict[str, Any]:
-        """DELETE request against v4 API."""
-        client = await self._get_client()
-        url = f"/{namespace}/{self.V4_VERSION}/{path}"
-
-        for attempt in range(self.MAX_RETRIES + 1):
-            try:
-                response = await client.delete(url)
-            except httpx.ConnectError as e:
-                raise NutanixAPIError(
-                    f"Connection failed to {self.settings.host}:{self.settings.port}",
-                    details=str(e),
-                )
-            except httpx.TimeoutException as e:
-                raise NutanixAPIError(
-                    f"Request timed out after {self.settings.timeout}s",
-                    details=str(e),
-                )
-
-            if response.status_code == 429 and attempt < self.MAX_RETRIES:
-                wait = self.RETRY_BACKOFF_BASE * (2**attempt)
-                await asyncio.sleep(wait)
-                continue
-
-            if response.status_code >= 400:
-                self._handle_error(response)
-
-            # DELETE may return 204 No Content
-            if response.status_code == 204:
-                return {}
             return response.json()
 
         self._handle_error(response)
@@ -309,93 +234,6 @@ class NutanixClient:
             params["$select"] = select
 
         return await self.v4_get(namespace, path, params=params)
-
-    # Default page size for paginated requests
-    DEFAULT_PAGE_SIZE = 50
-
-    # Hard ceiling to prevent runaway pagination
-    MAX_TOTAL_RESULTS = 5000
-
-    async def v4_list_all(
-        self,
-        namespace: str,
-        path: str,
-        filter: Optional[str] = None,
-        orderby: Optional[str] = None,
-        select: Optional[str] = None,
-        page_size: int = 50,
-        max_results: Optional[int] = None,
-    ) -> dict[str, Any]:
-        """Auto-paginate through all results for a v4 list endpoint.
-
-        Fetches pages of `page_size` until all results are collected or
-        `max_results` is reached. Returns a combined response with all data.
-
-        Uses extId-based deduplication to detect when the API does not
-        properly support $skip pagination (returns repeated results).
-
-        Args:
-            namespace: API namespace (e.g., 'vmm', 'clustermgmt')
-            path: Resource path
-            filter: OData $filter expression
-            orderby: OData $orderby expression
-            select: Fields to include in response
-            page_size: Number of results per page (default: 50)
-            max_results: Stop after this many total results (default: no limit)
-        """
-        ceiling = min(max_results, self.MAX_TOTAL_RESULTS) if max_results else self.MAX_TOTAL_RESULTS
-        all_data: list[Any] = []
-        seen_ids: set[str] = set()
-        skip = 0
-
-        while True:
-            result = await self.v4_list(
-                namespace=namespace,
-                path=path,
-                filter=filter,
-                orderby=orderby,
-                top=page_size,
-                skip=skip,
-                select=select,
-            )
-
-            page_data = result.get("data", [])
-            if not page_data:
-                break
-
-            # Deduplicate using extId to guard against APIs that ignore $skip
-            new_items = []
-            for item in page_data:
-                item_id = item.get("extId") if isinstance(item, dict) else None
-                if item_id:
-                    if item_id in seen_ids:
-                        continue
-                    seen_ids.add(item_id)
-                new_items.append(item)
-
-            # If the entire page was duplicates, pagination isn't advancing
-            if not new_items:
-                break
-
-            all_data.extend(new_items)
-
-            # Stop conditions: reached ceiling or partial page
-            if len(all_data) >= ceiling or len(page_data) < page_size:
-                break
-
-            skip += len(page_data)
-
-        # Trim to ceiling if we overshot
-        if len(all_data) > ceiling:
-            all_data = all_data[:ceiling]
-
-        return {
-            "data": all_data,
-            "metadata": {
-                "totalCount": len(all_data),
-                "truncated": len(all_data) >= ceiling,
-            },
-        }
 
     # ─── v3 API methods (fallback) ────────────────────────────────────────
 

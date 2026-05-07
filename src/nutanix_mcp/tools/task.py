@@ -59,31 +59,30 @@ TASK_TOOLS: list[dict] = [
 
 
 async def handle_list_tasks(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List tasks using v4 prism API."""
+    """List tasks using official Nutanix SDK."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit", 20)
+    sdk = client.sdk
 
-    result = await client.v4_list(
-        namespace="prism",
-        path="config/tasks",
-        filter=filter_expr,
-        orderby="createdTime desc",
-        top=limit,
-    )
+    kwargs: dict[str, Any] = {"_orderby": "createdTime desc", "_limit": limit}
+    if filter_expr:
+        kwargs["_filter"] = filter_expr
 
-    tasks = result.get("data", [])
+    response = await sdk.call(sdk.task_api.list_tasks, **kwargs)
+    tasks = response.data or []
+
     return {
         "count": len(tasks),
         "tasks": [
             {
-                "extId": task.get("extId"),
-                "status": task.get("status"),
-                "operation": task.get("operation"),
-                "percentageComplete": task.get("percentageComplete"),
-                "createdTime": task.get("createdTime"),
-                "completedTime": task.get("completedTime"),
-                "lastUpdatedTime": task.get("lastUpdatedTime"),
-                "entityRefs": task.get("entitiesAffected", []),
+                "extId": task.ext_id,
+                "status": task.status,
+                "operation": task.operation,
+                "percentageComplete": task.percentage_complete,
+                "createdTime": task.created_time,
+                "completedTime": task.completed_time,
+                "lastUpdatedTime": task.last_updated_time,
+                "entityRefs": task.entities_affected or [],
             }
             for task in tasks
         ],
@@ -91,28 +90,29 @@ async def handle_list_tasks(client: NutanixClient, arguments: dict[str, Any]) ->
 
 
 async def handle_get_task(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Get task details using v4 prism API."""
+    """Get task details using official Nutanix SDK."""
     task_uuid = arguments["task_uuid"]
-    result = await client.v4_get(
-        namespace="prism",
-        path=f"config/tasks/{task_uuid}",
-    )
+    sdk = client.sdk
 
-    task = result.get("data", result)
+    response = await sdk.call(sdk.task_api.get_task_by_id, task_uuid)
+    task = response.data
+    if not task:
+        return {}
+
     return {
-        "extId": task.get("extId"),
-        "status": task.get("status"),
-        "operation": task.get("operation"),
-        "percentageComplete": task.get("percentageComplete"),
-        "createdTime": task.get("createdTime"),
-        "startedTime": task.get("startedTime"),
-        "completedTime": task.get("completedTime"),
-        "lastUpdatedTime": task.get("lastUpdatedTime"),
-        "entitiesAffected": task.get("entitiesAffected", []),
-        "errorMessages": task.get("errorMessages"),
-        "warnings": task.get("warnings"),
-        "parentTask": task.get("parentTask"),
-        "subTasks": task.get("subTasks"),
+        "extId": task.ext_id,
+        "status": task.status,
+        "operation": task.operation,
+        "percentageComplete": task.percentage_complete,
+        "createdTime": task.created_time,
+        "startedTime": task.started_time,
+        "completedTime": task.completed_time,
+        "lastUpdatedTime": task.last_updated_time,
+        "entitiesAffected": task.entities_affected or [],
+        "errorMessages": task.error_messages,
+        "warnings": task.warnings,
+        "parentTask": task.parent_task,
+        "subTasks": task.sub_tasks,
     }
 
 

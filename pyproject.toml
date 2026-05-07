@@ -25,6 +25,11 @@ dependencies = [
     "python-dotenv>=1.0.0,<2.0",
     "uvicorn>=0.30.0",
     "starlette>=0.37.0",
+    "ntnx-vmm-py-client>=4.2.0",
+    "ntnx-clustermgmt-py-client>=4.2.0",
+    "ntnx-networking-py-client>=4.2.0",
+    "ntnx-prism-py-client>=4.2.0",
+    "ntnx-dataprotection-py-client>=4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -60,7 +65,7 @@ warn_return_any = false
 disallow_untyped_decorators = false
 
 [[tool.mypy.overrides]]
-module = ["mcp.*", "httpx.*"]
+module = ["mcp.*", "httpx.*", "ntnx_vmm_py_client.*", "ntnx_clustermgmt_py_client.*", "ntnx_networking_py_client.*", "ntnx_prism_py_client.*", "ntnx_dataprotection_py_client.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

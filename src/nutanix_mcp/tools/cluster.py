@@ -109,27 +109,27 @@ CLUSTER_TOOLS: list[dict] = [
 
 
 async def handle_list_clusters(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List clusters using v4 clustermgmt API."""
+    """List clusters using official Nutanix SDK."""
     filter_expr = arguments.get("filter")
+    sdk = client.sdk
 
-    result = await client.v4_list_all(
-        namespace="clustermgmt",
-        path="config/clusters",
-        filter=filter_expr,
-    )
+    kwargs: dict[str, Any] = {}
+    if filter_expr:
+        kwargs["_filter"] = filter_expr
 
-    clusters = result.get("data", [])
+    clusters = await sdk.list_all(sdk.cluster_api.list_clusters, **kwargs)
+
     return {
         "totalReturned": len(clusters),
         "note": "All matching clusters returned. No further pagination needed.",
         "clusters": [
             {
-                "name": c.get("name"),
-                "extId": c.get("extId"),
-                "clusterFunction": c.get("config", {}).get("clusterFunction"),
-                "hypervisorTypes": c.get("config", {}).get("hypervisorTypes"),
-                "operationMode": c.get("config", {}).get("operationMode"),
-                "redundancyFactor": c.get("config", {}).get("redundancyFactor"),
+                "name": c.name,
+                "extId": c.ext_id,
+                "clusterFunction": c.config.cluster_function if c.config else None,
+                "hypervisorTypes": c.config.hypervisor_types if c.config else None,
+                "operationMode": c.config.operation_mode if c.config else None,
+                "redundancyFactor": c.config.redundancy_factor if c.config else None,
             }
             for c in clusters
         ],
@@ -137,52 +137,61 @@ async def handle_list_clusters(client: NutanixClient, arguments: dict[str, Any])
 
 
 async def handle_get_cluster(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Get cluster details using v4 clustermgmt API."""
+    """Get cluster details using official Nutanix SDK."""
     cluster_uuid = arguments["cluster_uuid"]
-    result = await client.v4_get(
-        namespace="clustermgmt",
-        path=f"config/clusters/{cluster_uuid}",
-    )
-    return result.get("data", result)
+    sdk = client.sdk
+    response = await sdk.call(sdk.cluster_api.get_cluster_by_id, cluster_uuid)
+    cluster = response.data
+    return cluster.to_dict() if cluster else {}
 
 
 async def handle_list_hosts(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List hosts using v4 clustermgmt API."""
+    """List hosts using official Nutanix SDK."""
     cluster_uuid = arguments.get("cluster_uuid")
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
+    sdk = client.sdk
 
-    # If cluster_uuid provided, filter to that cluster's hosts
+    kwargs: dict[str, Any] = {}
+    if filter_expr:
+        kwargs["_filter"] = filter_expr
+
     if cluster_uuid:
-        path = f"config/clusters/{cluster_uuid}/hosts"
+        # Use cluster-scoped list
+        if limit:
+            response = await sdk.call(
+                sdk.cluster_api.list_hosts_by_cluster_id, cluster_uuid, _limit=limit, **kwargs
+            )
+            hosts = response.data or []
+        else:
+            hosts = await sdk.list_all(sdk.cluster_api.list_hosts_by_cluster_id, cluster_uuid, **kwargs)
     else:
-        path = "config/hosts"
+        # Use global hosts list
+        if limit:
+            response = await sdk.call(sdk.cluster_api.list_hosts, _limit=limit, **kwargs)
+            hosts = response.data or []
+        else:
+            hosts = await sdk.list_all(sdk.cluster_api.list_hosts, **kwargs)
 
-    result = await client.v4_list_all(
-        namespace="clustermgmt",
-        path=path,
-        filter=filter_expr,
-        max_results=limit,
-    )
-
-    hosts = result.get("data", [])
-
-    def _extract_host(h: dict) -> dict:
-        hypervisor = h.get("hypervisor") or {}
-        ext_addr = hypervisor.get("externalAddress") or {}
-        ipv4 = ext_addr.get("ipv4") or {}
-        cluster_ref = h.get("cluster") or {}
+    def _extract_host(h: Any) -> dict:
+        hypervisor = h.hypervisor
+        ip_address = None
+        if hypervisor and hypervisor.external_address:
+            addr = hypervisor.external_address
+            if hasattr(addr, "ipv4") and addr.ipv4:
+                ip_address = addr.ipv4.value
+        cluster_ref = h.cluster
         return {
-            "name": h.get("hostName"),
-            "extId": h.get("extId"),
-            "hypervisorType": hypervisor.get("type"),
-            "ipAddress": ipv4.get("value"),
-            "cpuModel": h.get("cpuModel"),
-            "numCpuSockets": h.get("numberOfCpuSockets"),
-            "numCpuCores": h.get("numberOfCpuCores"),
-            "memorySizeBytes": h.get("memorySizeBytes"),
-            "cluster": cluster_ref.get("uuid") or cluster_ref.get("extId"),
-            "clusterName": cluster_ref.get("name"),
+            "name": h.host_name,
+            "extId": h.ext_id,
+            "hypervisorType": hypervisor.type if hypervisor else None,
+            "ipAddress": ip_address,
+            "cpuModel": h.cpu_model,
+            "numCpuSockets": h.number_of_cpu_sockets,
+            "numCpuCores": h.number_of_cpu_cores,
+            "memorySizeBytes": h.memory_size_bytes,
+            "cluster": cluster_ref.ext_id if cluster_ref else None,
+            "clusterName": cluster_ref.name if cluster_ref else None,
         }
 
     return {
@@ -193,8 +202,9 @@ async def handle_list_hosts(client: NutanixClient, arguments: dict[str, Any]) ->
 
 
 async def handle_get_host(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Get host details using v4 clustermgmt API."""
+    """Get host details. Uses httpx fallback since SDK requires clusterExtId."""
     host_uuid = arguments["host_uuid"]
+    # SDK's get_host_by_id requires clusterExtId — use httpx for direct access
     result = await client.v4_get(
         namespace="clustermgmt",
         path=f"config/hosts/{host_uuid}",
@@ -203,35 +213,34 @@ async def handle_get_host(client: NutanixClient, arguments: dict[str, Any]) -> d
 
 
 async def handle_list_storage_containers(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List storage containers using v4 clustermgmt API."""
+    """List storage containers using official Nutanix SDK."""
     cluster_uuid = arguments.get("cluster_uuid")
     limit = arguments.get("limit")
+    sdk = client.sdk
 
+    kwargs: dict[str, Any] = {}
     if cluster_uuid:
-        path = f"config/clusters/{cluster_uuid}/storage-containers"
+        kwargs["_filter"] = f"clusterExtId eq '{cluster_uuid}'"
+
+    if limit:
+        response = await sdk.call(sdk.storage_container_api.list_storage_containers, _limit=limit, **kwargs)
+        containers = response.data or []
     else:
-        path = "config/storage-containers"
+        containers = await sdk.list_all(sdk.storage_container_api.list_storage_containers, **kwargs)
 
-    result = await client.v4_list_all(
-        namespace="clustermgmt",
-        path=path,
-        max_results=limit,
-    )
-
-    containers = result.get("data", [])
     return {
         "totalReturned": len(containers),
         "note": "All matching storage containers returned. No further pagination needed.",
         "storageContainers": [
             {
-                "name": sc.get("name"),
-                "extId": sc.get("containerExtId"),
-                "maxCapacityBytes": sc.get("maxCapacityBytes"),
-                "replicationFactor": sc.get("replicationFactor"),
-                "compressionEnabled": sc.get("isCompressionEnabled"),
-                "encrypted": sc.get("isEncrypted"),
-                "clusterExtId": sc.get("clusterExtId"),
-                "clusterName": sc.get("clusterName"),
+                "name": sc.name,
+                "extId": sc.container_ext_id if hasattr(sc, "container_ext_id") else sc.ext_id,
+                "maxCapacityBytes": sc.max_capacity_bytes if hasattr(sc, "max_capacity_bytes") else None,
+                "replicationFactor": sc.replication_factor if hasattr(sc, "replication_factor") else None,
+                "compressionEnabled": sc.is_compression_enabled if hasattr(sc, "is_compression_enabled") else None,
+                "encrypted": sc.is_encrypted if hasattr(sc, "is_encrypted") else None,
+                "clusterExtId": sc.cluster_ext_id if hasattr(sc, "cluster_ext_id") else None,
+                "clusterName": sc.cluster_name if hasattr(sc, "cluster_name") else None,
             }
             for sc in containers
         ],

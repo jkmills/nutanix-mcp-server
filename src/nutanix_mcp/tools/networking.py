@@ -128,41 +128,68 @@ NETWORKING_TOOLS: list[dict] = [
 
 
 async def handle_list_subnets(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List subnets using v4 networking API."""
+    """List subnets using official Nutanix SDK."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
+    sdk = client.sdk
 
-    result = await client.v4_list_all(
-        namespace="networking",
-        path="config/subnets",
-        filter=filter_expr,
-        max_results=limit,
-    )
+    kwargs: dict[str, Any] = {}
+    if filter_expr:
+        kwargs["_filter"] = filter_expr
 
-    subnets = result.get("data", [])
+    if limit:
+        response = await sdk.call(sdk.subnet_api.list_subnets, _limit=limit, **kwargs)
+        subnets = response.data or []
+    else:
+        subnets = await sdk.list_all(sdk.subnet_api.list_subnets, **kwargs)
+
     return {
         "totalReturned": len(subnets),
         "note": "All matching subnets returned. No further pagination needed.",
         "subnets": [
             {
-                "name": s.get("name"),
-                "extId": s.get("extId"),
-                "subnetType": s.get("subnetType"),
-                "vlanId": s.get("networkId"),
-                "cidr": _extract_cidr(s),
-                "cluster": s.get("clusterReference"),
+                "name": s.name,
+                "extId": s.ext_id,
+                "subnetType": s.subnet_type,
+                "vlanId": s.network_id,
+                "cidr": _extract_cidr_from_model(s),
+                "cluster": s.cluster_reference if hasattr(s, "cluster_reference") else None,
             }
             for s in subnets
         ],
     }
 
 
+def _extract_cidr_from_model(subnet: Any) -> str | None:
+    """Extract CIDR from subnet model IP config."""
+    ip_config = getattr(subnet, "ip_config", None)
+    if not ip_config:
+        return None
+    # ip_config can be a list of configs
+    if isinstance(ip_config, list):
+        ip_config = ip_config[0] if ip_config else None
+    if not ip_config:
+        return None
+    ipv4 = getattr(ip_config, "ipv4", None)
+    if not ipv4:
+        return None
+    ip_subnet = getattr(ipv4, "ip_subnet", None)
+    if not ip_subnet:
+        return None
+    ip_obj = getattr(ip_subnet, "ip", None)
+    prefix = getattr(ip_subnet, "prefix_length", None)
+    if ip_obj and prefix:
+        ip_val = getattr(ip_obj, "value", None)
+        if ip_val:
+            return f"{ip_val}/{prefix}"
+    return None
+
+
 def _extract_cidr(subnet: dict) -> str | None:
-    """Extract CIDR from subnet IP config."""
+    """Extract CIDR from subnet IP config (legacy dict fallback)."""
     ip_config = subnet.get("ipConfig")
     if not ip_config:
         return None
-    # ipConfig can be a list of configs or a single dict
     if isinstance(ip_config, list):
         ip_config = ip_config[0] if ip_config else None
     if not ip_config or not isinstance(ip_config, dict):
@@ -181,39 +208,41 @@ def _extract_cidr(subnet: dict) -> str | None:
 
 
 async def handle_get_subnet(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Get subnet details using v4 networking API."""
+    """Get subnet details using official Nutanix SDK."""
     subnet_uuid = arguments["subnet_uuid"]
-    result = await client.v4_get(
-        namespace="networking",
-        path=f"config/subnets/{subnet_uuid}",
-    )
-    return result.get("data", result)
+    sdk = client.sdk
+    response = await sdk.call(sdk.subnet_api.get_subnet_by_id, subnet_uuid)
+    subnet = response.data
+    return subnet.to_dict() if subnet else {}
 
 
 async def handle_list_images(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List images using v4 vmm API."""
+    """List images using official Nutanix SDK."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
+    sdk = client.sdk
 
-    result = await client.v4_list_all(
-        namespace="vmm",
-        path="content/images",
-        filter=filter_expr,
-        max_results=limit,
-    )
+    kwargs: dict[str, Any] = {}
+    if filter_expr:
+        kwargs["_filter"] = filter_expr
 
-    images = result.get("data", [])
+    if limit:
+        response = await sdk.call(sdk.image_api.list_images, _limit=limit, **kwargs)
+        images = response.data or []
+    else:
+        images = await sdk.list_all(sdk.image_api.list_images, **kwargs)
+
     return {
         "totalReturned": len(images),
         "note": "All matching images returned. No further pagination needed.",
         "images": [
             {
-                "name": img.get("name"),
-                "extId": img.get("extId"),
-                "type": img.get("type"),
-                "sizeBytes": img.get("sizeBytes"),
-                "sourceUri": img.get("source", {}).get("url") if img.get("source") else None,
-                "description": img.get("description"),
+                "name": img.name,
+                "extId": img.ext_id,
+                "type": img.type,
+                "sizeBytes": img.size_bytes,
+                "sourceUri": img.source.url if hasattr(img, "source") and img.source else None,
+                "description": img.description,
             }
             for img in images
         ],
@@ -221,38 +250,40 @@ async def handle_list_images(client: NutanixClient, arguments: dict[str, Any]) -
 
 
 async def handle_get_image(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Get image details using v4 vmm API."""
+    """Get image details using official Nutanix SDK."""
     image_uuid = arguments["image_uuid"]
-    result = await client.v4_get(
-        namespace="vmm",
-        path=f"content/images/{image_uuid}",
-    )
-    return result.get("data", result)
+    sdk = client.sdk
+    response = await sdk.call(sdk.image_api.get_image_by_id, image_uuid)
+    image = response.data
+    return image.to_dict() if image else {}
 
 
 async def handle_list_categories(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List categories using v4 prism API."""
+    """List categories using official Nutanix SDK."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
+    sdk = client.sdk
 
-    result = await client.v4_list_all(
-        namespace="prism",
-        path="config/categories",
-        filter=filter_expr,
-        max_results=limit,
-    )
+    kwargs: dict[str, Any] = {}
+    if filter_expr:
+        kwargs["_filter"] = filter_expr
 
-    categories = result.get("data", [])
+    if limit:
+        response = await sdk.call(sdk.category_api.list_categories, _limit=limit, **kwargs)
+        categories = response.data or []
+    else:
+        categories = await sdk.list_all(sdk.category_api.list_categories, **kwargs)
+
     return {
         "totalReturned": len(categories),
         "note": "All matching categories returned. No further pagination needed.",
         "categories": [
             {
-                "key": cat.get("key"),
-                "extId": cat.get("extId"),
-                "value": cat.get("value"),
-                "description": cat.get("description"),
-                "type": cat.get("type"),
+                "key": cat.key,
+                "extId": cat.ext_id,
+                "value": cat.value,
+                "description": cat.description,
+                "type": cat.type,
             }
             for cat in categories
         ],
@@ -260,13 +291,12 @@ async def handle_list_categories(client: NutanixClient, arguments: dict[str, Any
 
 
 async def handle_get_category(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Get category details using v4 prism API."""
+    """Get category details using official Nutanix SDK."""
     category_uuid = arguments["category_uuid"]
-    result = await client.v4_get(
-        namespace="prism",
-        path=f"config/categories/{category_uuid}",
-    )
-    return result.get("data", result)
+    sdk = client.sdk
+    response = await sdk.call(sdk.category_api.get_category_by_id, category_uuid)
+    category = response.data
+    return category.to_dict() if category else {}
 
 
 # ─── Handler Dispatch ─────────────────────────────────────────────────────────

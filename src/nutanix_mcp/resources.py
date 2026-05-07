@@ -87,33 +87,45 @@ async def resolve_resource(client: NutanixClient, uri: str) -> list[TextResource
     resource_type = parts[0] if parts else ""
     resource_id = parts[1] if len(parts) > 1 else None
 
+    sdk = client.sdk
     data: Any
 
     if resource_type == "vms":
         if resource_id:
-            data = await client.v4_get(namespace="vmm", path=f"ahv/config/vms/{resource_id}")
+            response = await sdk.call(sdk.vm_api.get_vm_by_id, resource_id)
+            data = response.data.to_dict() if response.data else {}
         else:
-            data = await client.v4_list_all(namespace="vmm", path="ahv/config/vms")
+            vms = await sdk.list_all(sdk.vm_api.list_vms)
+            data = [vm.to_dict() for vm in vms]
     elif resource_type == "clusters":
         if resource_id:
-            data = await client.v4_get(namespace="clustermgmt", path=f"config/clusters/{resource_id}")
+            response = await sdk.call(sdk.cluster_api.get_cluster_by_id, resource_id)
+            data = response.data.to_dict() if response.data else {}
         else:
-            data = await client.v4_list_all(namespace="clustermgmt", path="config/clusters")
+            clusters = await sdk.list_all(sdk.cluster_api.list_clusters)
+            data = [c.to_dict() for c in clusters]
     elif resource_type == "hosts":
         if resource_id:
-            data = await client.v4_get(namespace="clustermgmt", path=f"config/hosts/{resource_id}")
+            # SDK requires clusterExtId for get_host_by_id; use httpx fallback
+            result = await client.v4_get(namespace="clustermgmt", path=f"config/hosts/{resource_id}")
+            data = result.get("data", result)
         else:
-            data = await client.v4_list_all(namespace="clustermgmt", path="config/hosts")
+            hosts = await sdk.list_all(sdk.cluster_api.list_hosts)
+            data = [h.to_dict() for h in hosts]
     elif resource_type == "subnets":
         if resource_id:
-            data = await client.v4_get(namespace="networking", path=f"config/subnets/{resource_id}")
+            response = await sdk.call(sdk.subnet_api.get_subnet_by_id, resource_id)
+            data = response.data.to_dict() if response.data else {}
         else:
-            data = await client.v4_list_all(namespace="networking", path="config/subnets")
+            subnets = await sdk.list_all(sdk.subnet_api.list_subnets)
+            data = [s.to_dict() for s in subnets]
     elif resource_type == "images":
         if resource_id:
-            data = await client.v4_get(namespace="vmm", path=f"content/images/{resource_id}")
+            response = await sdk.call(sdk.image_api.get_image_by_id, resource_id)
+            data = response.data.to_dict() if response.data else {}
         else:
-            data = await client.v4_list_all(namespace="vmm", path="content/images")
+            images = await sdk.list_all(sdk.image_api.list_images)
+            data = [img.to_dict() for img in images]
     else:
         data = {"error": f"Unknown resource type: {resource_type}"}
 
@@ -121,6 +133,6 @@ async def resolve_resource(client: NutanixClient, uri: str) -> list[TextResource
         TextResourceContents(
             uri=uri,
             mimeType="application/json",
-            text=json.dumps(data.get("data", data), indent=2),
+            text=json.dumps(data, indent=2, default=str),
         )
     ]

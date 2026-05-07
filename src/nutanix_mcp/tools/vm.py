@@ -194,29 +194,34 @@ VM_TOOLS: list[dict] = [
 
 
 async def handle_list_vms(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """List VMs using v4 vmm API. Auto-paginates — returns all results in one response."""
+    """List VMs using official Nutanix SDK. Handles pagination automatically."""
     filter_expr = arguments.get("filter")
     limit = arguments.get("limit")
 
-    result = await client.v4_list_all(
-        namespace="vmm",
-        path="ahv/config/vms",
-        filter=filter_expr,
-        max_results=limit,
-    )
+    sdk = client.sdk
+    kwargs: dict[str, Any] = {}
+    if filter_expr:
+        kwargs["_filter"] = filter_expr
 
-    vms = result.get("data", [])
+    if limit:
+        # Single page with limit
+        response = await sdk.call(sdk.vm_api.list_vms, _limit=limit, **kwargs)
+        vms = response.data or []
+    else:
+        # Auto-paginate all results
+        vms = await sdk.list_all(sdk.vm_api.list_vms, **kwargs)
+
     return {
         "totalReturned": len(vms),
         "note": "All matching VMs returned. No further pagination needed.",
         "vms": [
             {
-                "name": vm.get("name"),
-                "extId": vm.get("extId"),
-                "powerState": vm.get("powerState"),
-                "numVcpus": vm.get("numSockets", 0) * vm.get("numCoresPerSocket", 0),
-                "memorySizeMb": vm.get("memorySizeBytes", 0) // (1024 * 1024),
-                "cluster": vm.get("cluster", {}).get("extId"),
+                "name": vm.name,
+                "extId": vm.ext_id,
+                "powerState": vm.power_state,
+                "numVcpus": (vm.num_sockets or 0) * (vm.num_cores_per_socket or 0),
+                "memorySizeMb": (vm.memory_size_bytes or 0) // (1024 * 1024),
+                "cluster": vm.cluster.ext_id if vm.cluster else None,
             }
             for vm in vms
         ],
@@ -224,117 +229,106 @@ async def handle_list_vms(client: NutanixClient, arguments: dict[str, Any]) -> d
 
 
 async def handle_get_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Get VM details using v4 vmm API."""
+    """Get VM details using official Nutanix SDK."""
     vm_uuid = arguments["vm_uuid"]
-    result = await client.v4_get(
-        namespace="vmm",
-        path=f"ahv/config/vms/{vm_uuid}",
-    )
-    return result.get("data", result)
+    sdk = client.sdk
+    response = await sdk.call(sdk.vm_api.get_vm_by_id, vm_uuid)
+    vm = response.data
+    return vm.to_dict() if vm else {}
 
 
 async def handle_power_on_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Power on a VM using v4 vmm API."""
+    """Power on a VM using official Nutanix SDK."""
     vm_uuid = arguments["vm_uuid"]
-    result = await client.v4_post(
-        namespace="vmm",
-        path=f"ahv/config/vms/{vm_uuid}/$actions/power-on",
-        body={},
-    )
-    return {"status": "power_on_initiated", "taskExtId": result.get("data", {}).get("extId")}
+    sdk = client.sdk
+    response = await sdk.call(sdk.vm_api.power_on_vm, vm_uuid)
+    task_id = response.data.ext_id if response.data else None
+    return {"status": "power_on_initiated", "taskExtId": task_id}
 
 
 async def handle_power_off_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Power off a VM using v4 vmm API."""
+    """Power off a VM using official Nutanix SDK."""
     vm_uuid = arguments["vm_uuid"]
     force = arguments.get("force", False)
+    sdk = client.sdk
 
-    action = "power-off" if force else "guest-shutdown"
-    result = await client.v4_post(
-        namespace="vmm",
-        path=f"ahv/config/vms/{vm_uuid}/$actions/{action}",
-        body={},
-    )
-    return {"status": f"{action}_initiated", "taskExtId": result.get("data", {}).get("extId")}
+    if force:
+        response = await sdk.call(sdk.vm_api.power_off_vm, vm_uuid)
+        action = "power-off"
+    else:
+        import ntnx_vmm_py_client.models.vmm.v4.ahv.config.GuestPowerOptions as gpo
+        body = gpo.GuestPowerOptions()
+        response = await sdk.call(sdk.vm_api.shutdown_guest_vm, vm_uuid, body)
+        action = "guest-shutdown"
+
+    task_id = response.data.ext_id if response.data else None
+    return {"status": f"{action}_initiated", "taskExtId": task_id}
 
 
 async def handle_create_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Create a VM using v4 vmm API."""
+    """Create a VM using official Nutanix SDK."""
+    import ntnx_vmm_py_client.models.vmm.v4.ahv.config.Vm as VmModule
+    import ntnx_vmm_py_client.models.vmm.v4.ahv.config.Disk as DiskModule
+
     name = arguments["name"]
     cluster_uuid = arguments["cluster_uuid"]
     num_vcpus = arguments.get("num_vcpus", 2)
     memory_mb = arguments.get("memory_mb", 4096)
     disk_size_gb = arguments.get("disk_size_gb", 40)
 
-    body = {
-        "name": name,
-        "cluster": {"extId": cluster_uuid},
-        "numSockets": 1,
-        "numCoresPerSocket": num_vcpus,
-        "memorySizeBytes": memory_mb * 1024 * 1024,
-        "disks": [
-            {
-                "diskSizeBytes": disk_size_gb * 1024 * 1024 * 1024,
-                "storageConfig": {
-                    "storageContainerReference": None,
-                },
-            }
-        ],
-    }
+    cluster_ref = VmModule.ClusterReference()
+    cluster_ref.ext_id = cluster_uuid
 
-    result = await client.v4_post(
-        namespace="vmm",
-        path="ahv/config/vms",
-        body=body,
-    )
+    disk = DiskModule.Disk()
+    disk.disk_size_bytes = disk_size_gb * 1024 * 1024 * 1024
+
+    vm = VmModule.Vm()
+    vm.name = name
+    vm.cluster = cluster_ref
+    vm.num_sockets = 1
+    vm.num_cores_per_socket = num_vcpus
+    vm.memory_size_bytes = memory_mb * 1024 * 1024
+    vm.disks = [disk]
+
+    sdk = client.sdk
+    response = await sdk.call(sdk.vm_api.create_vm, vm)
+    task_id = response.data.ext_id if response.data else None
     return {
         "status": "vm_creation_initiated",
-        "taskExtId": result.get("data", {}).get("extId"),
+        "taskExtId": task_id,
     }
 
 
 async def handle_update_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Update a VM using v4 vmm API with ETag concurrency control."""
+    """Update a VM using official Nutanix SDK with ETag concurrency control."""
     vm_uuid = arguments["vm_uuid"]
+    sdk = client.sdk
 
-    # First, fetch the current VM to get its ETag and current config
-    current = await client.v4_get(
-        namespace="vmm",
-        path=f"ahv/config/vms/{vm_uuid}",
-    )
-    vm_data = current.get("data", current)
+    # Fetch current VM state (SDK handles ETag via If-Match internally)
+    get_response = await sdk.call(sdk.vm_api.get_vm_by_id, vm_uuid)
+    vm = get_response.data
 
-    # Build the update body from current state + requested changes
+    # Apply requested changes
     if "name" in arguments:
-        vm_data["name"] = arguments["name"]
+        vm.name = arguments["name"]
     if "description" in arguments:
-        vm_data["description"] = arguments["description"]
+        vm.description = arguments["description"]
     if "num_vcpus" in arguments:
-        vm_data["numCoresPerSocket"] = arguments["num_vcpus"]
-        vm_data["numSockets"] = 1
+        vm.num_cores_per_socket = arguments["num_vcpus"]
+        vm.num_sockets = 1
     if "memory_mb" in arguments:
-        vm_data["memorySizeBytes"] = arguments["memory_mb"] * 1024 * 1024
+        vm.memory_size_bytes = arguments["memory_mb"] * 1024 * 1024
 
-    # Extract ETag from metadata for concurrency control
-    etag = current.get("metadata", {}).get("ETag")
-    headers = {}
-    if etag:
-        headers["If-Match"] = etag
-
-    result = await client.v4_put(
-        namespace="vmm",
-        path=f"ahv/config/vms/{vm_uuid}",
-        body=vm_data,
-        headers=headers or None,
-    )
+    response = await sdk.call(sdk.vm_api.update_vm_by_id, vm_uuid, vm)
+    task_id = response.data.ext_id if response.data else None
     return {
         "status": "vm_update_initiated",
-        "taskExtId": result.get("data", {}).get("extId"),
+        "taskExtId": task_id,
     }
 
 
 async def handle_delete_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Delete a VM using v4 vmm API."""
+    """Delete a VM using official Nutanix SDK."""
     vm_uuid = arguments["vm_uuid"]
     confirm = arguments.get("confirm", False)
 
@@ -344,33 +338,31 @@ async def handle_delete_vm(client: NutanixClient, arguments: dict[str, Any]) -> 
             "message": "Deletion not confirmed. Set 'confirm: true' to proceed with VM deletion.",
         }
 
-    result = await client.v4_delete(
-        namespace="vmm",
-        path=f"ahv/config/vms/{vm_uuid}",
-    )
+    sdk = client.sdk
+    response = await sdk.call(sdk.vm_api.delete_vm_by_id, vm_uuid)
+    task_id = response.data.ext_id if response.data else None
     return {
         "status": "vm_deletion_initiated",
-        "taskExtId": result.get("data", {}).get("extId") if result else None,
+        "taskExtId": task_id,
     }
 
 
 async def handle_clone_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Clone a VM using v4 vmm API."""
+    """Clone a VM using official Nutanix SDK."""
+    import ntnx_vmm_py_client.models.vmm.v4.ahv.config.CloneOverrideParams as CloneModule
+
     vm_uuid = arguments["vm_uuid"]
     new_name = arguments["new_name"]
 
-    body = {
-        "name": new_name,
-    }
+    body = CloneModule.CloneOverrideParams()
+    body.name = new_name
 
-    result = await client.v4_post(
-        namespace="vmm",
-        path=f"ahv/config/vms/{vm_uuid}/$actions/clone",
-        body=body,
-    )
+    sdk = client.sdk
+    response = await sdk.call(sdk.vm_api.clone_vm, vm_uuid, body)
+    task_id = response.data.ext_id if response.data else None
     return {
         "status": "vm_clone_initiated",
-        "taskExtId": result.get("data", {}).get("extId"),
+        "taskExtId": task_id,
     }
 
 
