@@ -23,6 +23,7 @@ from nutanix_mcp.tools.vm import VM_HANDLERS
 from nutanix_mcp.tools.cluster import CLUSTER_HANDLERS
 from nutanix_mcp.tools.prism_element import PE_HANDLERS
 from nutanix_mcp.tools.networking import NETWORKING_HANDLERS
+from nutanix_mcp.tools.task import TASK_HANDLERS
 from nutanix_mcp.resources import (
     RESOURCE_TEMPLATES,
     STATIC_RESOURCES,
@@ -36,6 +37,7 @@ ALL_HANDLERS: dict[str, Any] = {
     **CLUSTER_HANDLERS,
     **PE_HANDLERS,
     **NETWORKING_HANDLERS,
+    **TASK_HANDLERS,
 }
 
 
