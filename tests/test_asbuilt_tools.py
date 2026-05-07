@@ -10,6 +10,7 @@ from nutanix_mcp.tools.asbuilt import (
     _markdown_to_html_body,
     handle_export_asbuilt_html,
     handle_generate_asbuilt,
+    handle_get_project_architecture,
 )
 
 
@@ -406,6 +407,18 @@ def test_markdown_to_html_bold_and_code():
     html_out = _markdown_to_html_body(md)
     assert "<strong>bold</strong>" in html_out
     assert "<code>code</code>" in html_out
+
+
+@pytest.mark.asyncio
+async def test_get_project_architecture(mock_client):
+    """Project architecture tool returns markdown documentation."""
+    result = await handle_get_project_architecture(mock_client, {})
+
+    assert "markdown" in result
+    md = result["markdown"]
+    assert "Nutanix MCP Server" in md
+    assert "Architecture" in md
+    assert "note" in result
 
 
 @pytest.mark.asyncio

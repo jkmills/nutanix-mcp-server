@@ -80,6 +80,18 @@ ASBUILT_TOOLS: list[dict] = [
             "required": ["markdown"],
         },
     },
+    {
+        "name": "get_project_architecture",
+        "description": (
+            "Get the Nutanix MCP Server project architecture documentation. "
+            "Returns a Markdown document with component diagrams, API layer details, "
+            "tool inventory, design decisions, deployment topology, and file structure."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
 ]
 
 
@@ -1005,7 +1017,18 @@ async def handle_export_asbuilt_html(client: NutanixClient, arguments: dict[str,
     }
 
 
+async def handle_get_project_architecture(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Return the project architecture documentation."""
+    from nutanix_mcp.resources import _project_architecture_doc
+
+    return {
+        "markdown": _project_architecture_doc(),
+        "note": "This is the Nutanix MCP Server project architecture. Use export_asbuilt_html to convert to PDF.",
+    }
+
+
 ASBUILT_HANDLERS: dict[str, Any] = {
     "generate_asbuilt": handle_generate_asbuilt,
     "export_asbuilt_html": handle_export_asbuilt_html,
+    "get_project_architecture": handle_get_project_architecture,
 }

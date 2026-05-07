@@ -1,592 +1,133 @@
-name: nutanix-mcp-server
-type: server
-image: ghcr.io/jkmills/nutanix-mcp-server:latest
-description: MCP server for Nutanix Prism Central & Prism Element — manage VMs, clusters, networks, snapshots, tasks, and alerts via AI assistants.
-title: Nutanix Prism
-secrets:
-- name: nutanix-mcp-server.password
-  env: NUTANIX_PASSWORD
-env:
-- name: NUTANIX_HOST
-  value: "{{nutanix-mcp-server.host}}"
-- name: NUTANIX_PORT
-  value: "{{nutanix-mcp-server.port}}"
-- name: NUTANIX_USERNAME
-  value: "{{nutanix-mcp-server.username}}"
-- name: NUTANIX_VERIFY_SSL
-  value: "{{nutanix-mcp-server.verify_ssl}}"
-config:
-- name: nutanix-mcp-server
-  description: Configure the connection to your Nutanix Prism Central instance.
-  type: object
-  properties:
-    host:
-      type: string
-    port:
-      type: string
-    username:
-      type: string
-    verify_ssl:
-      type: string
-  required:
-    - host
-    - username
+description: Nutanix MCP Server - Infrastructure management tools for Nutanix Prism Central and Prism Element
+icon: icon.png
 tools:
-- name: list_vms
-  description: List ALL virtual machines on Nutanix (auto-paginates internally). Returns complete results in one call — no manual pagination needed. Use 'cluster_name' to filter VMs to a specific cluster by name. Use 'filter' to narrow results via OData. Use 'limit' only if you want a subset.
-  arguments:
-  - name: cluster_name
-    type: string
-    desc: Filter VMs to a specific cluster by name (client-side filtering).
-    optional: true
-  - name: filter
-    type: string
-    desc: OData filter expression. Examples: "name eq 'my-vm'", "powerState eq 'ON'"
-    optional: true
-  - name: limit
-    type: integer
-    desc: Optional cap on results. Omit to get ALL VMs (default behavior).
-    optional: true
-- name: get_vm
-  description: Get detailed information about a specific VM by its UUID. Returns full configuration including CPU, memory, disks, and NICs.
-  arguments:
-  - name: vm_uuid
-    type: string
-    desc: The UUID (extId) of the virtual machine
-- name: power_on_vm
-  description: Power on a virtual machine.
-  arguments:
-  - name: vm_uuid
-    type: string
-    desc: The UUID (extId) of the virtual machine
-- name: power_off_vm
-  description: Power off a virtual machine. Uses ACPI shutdown by default (guest-initiated).
-  arguments:
-  - name: vm_uuid
-    type: string
-    desc: The UUID (extId) of the virtual machine
-  - name: force
-    type: boolean
-    desc: Force power off (hard shutdown) instead of ACPI guest shutdown
-    optional: true
-- name: create_vm
-  description: Create a new virtual machine. Requires name, cluster UUID, and basic specs.
-  arguments:
-  - name: name
-    type: string
-    desc: Name for the new VM
-  - name: cluster_uuid
-    type: string
-    desc: UUID of the cluster to create the VM on
-  - name: num_vcpus
-    type: integer
-    desc: Number of vCPUs (default: 2)
-    optional: true
-  - name: memory_mb
-    type: integer
-    desc: Memory in MB (default: 4096)
-    optional: true
-  - name: disk_size_gb
-    type: integer
-    desc: Boot disk size in GB (default: 40)
-    optional: true
-- name: update_vm
-  description: Update a virtual machine's configuration (CPU, memory, name, description). The VM should be powered off for CPU/memory changes. Uses ETag-based concurrency control. Returns a task UUID for status tracking.
-  arguments:
-  - name: vm_uuid
-    type: string
-    desc: The UUID (extId) of the virtual machine to update
-  - name: name
-    type: string
-    desc: New name for the VM (optional)
-    optional: true
-  - name: description
-    type: string
-    desc: New description for the VM (optional)
-    optional: true
-  - name: num_vcpus
-    type: integer
-    desc: New total number of vCPUs (optional, VM must be off)
-    optional: true
-  - name: memory_mb
-    type: integer
-    desc: New memory in MB (optional, VM must be off)
-    optional: true
-- name: delete_vm
-  description: Delete a virtual machine permanently. This action cannot be undone. Requires explicit confirmation. Returns a task UUID for status tracking.
-  arguments:
-  - name: vm_uuid
-    type: string
-    desc: The UUID (extId) of the virtual machine to delete
-  - name: confirm
-    type: boolean
-    desc: Must be true to confirm deletion. Safety guard against accidental deletes.
-- name: clone_vm
-  description: Clone an existing virtual machine. Creates a copy with a new name. Returns a task UUID for status tracking.
-  arguments:
-  - name: vm_uuid
-    type: string
-    desc: The UUID (extId) of the source VM to clone
-  - name: new_name
-    type: string
-    desc: Name for the cloned VM
-- name: list_clusters
-  description: List ALL Nutanix clusters registered with Prism Central (auto-paginates internally). Returns complete results in one call — no manual pagination needed.
-  arguments:
-  - name: filter
-    type: string
-    desc: OData filter expression. Example: "name eq 'prod-cluster'"
-    optional: true
-- name: get_cluster
-  description: Get detailed information about a specific cluster by UUID. Returns configuration, network, storage, and health details.
-  arguments:
-  - name: cluster_uuid
-    type: string
-    desc: The UUID (extId) of the cluster
-- name: list_hosts
-  description: List ALL hypervisor hosts (auto-paginates internally). Returns complete results in one call — no manual pagination needed. Optionally filter by cluster UUID.
-  arguments:
-  - name: cluster_uuid
-    type: string
-    desc: Filter hosts to a specific cluster UUID
-    optional: true
-  - name: filter
-    type: string
-    desc: OData filter expression
-    optional: true
-  - name: limit
-    type: integer
-    desc: Optional cap on results. Omit to get ALL hosts (default behavior).
-    optional: true
-- name: get_host
-  description: Get detailed information about a specific host by UUID. Returns hardware specs, hypervisor info, and resource usage.
-  arguments:
-  - name: host_uuid
-    type: string
-    desc: The UUID (extId) of the host
-- name: list_storage_containers
-  description: List ALL storage containers (auto-paginates internally). Returns complete results in one call — no manual pagination needed.
-  arguments:
-  - name: cluster_uuid
-    type: string
-    desc: Filter to a specific cluster UUID
-    optional: true
-  - name: limit
-    type: integer
-    desc: Optional cap on results. Omit to get ALL containers (default behavior).
-    optional: true
-- name: pe_get_cluster_info
-  description: Get cluster info directly from a Prism Element node. Returns AOS version, cluster name, storage capacity, and health.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_vms
-  description: List VMs on a specific Prism Element cluster. Returns VM names, UUIDs, power states, and resource allocation.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-  - name: count
-    type: integer
-    desc: Maximum number of VMs to return
-    optional: true
-- name: pe_list_hosts
-  description: List hypervisor hosts on a Prism Element cluster. Returns host names, IPs, hardware specs, and CVM info.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_containers
-  description: List storage containers on a Prism Element cluster. Returns names, capacity, usage, replication factor, and policies.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_storage_pools
-  description: List storage pools on a Prism Element cluster. Returns pool names, capacity, and disk composition.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_disks
-  description: List physical disks on a Prism Element cluster. Returns disk type (SSD/HDD), status, capacity, and location.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_alerts
-  description: List alerts on a Prism Element cluster. Returns alert titles, severity, timestamps, and affected entities.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-  - name: resolved
-    type: boolean
-    desc: Include resolved alerts (default: false, only active)
-    optional: true
-  - name: count
-    type: integer
-    desc: Maximum number of alerts to return (default: 50)
-    optional: true
-- name: pe_list_protection_domains
-  description: List protection domains on a Prism Element cluster. Returns PD names, protected entities, schedules, and replication state.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_snapshots
-  description: List snapshots for a protection domain on a Prism Element cluster.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-  - name: protection_domain
-    type: string
-    desc: Name of the protection domain
-- name: pe_get_auth_config
-  description: Get authentication configuration from a Prism Element cluster. Returns auth types, directory services (LDAP/AD), and local account settings.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_smtp_config
-  description: Get SMTP server configuration from a Prism Element cluster. Returns relay server, port, sender address, and security settings.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_snmp_config
-  description: Get SNMP configuration from a Prism Element cluster. Returns SNMP traps, transports, users, and community strings.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_syslog_config
-  description: Get remote syslog server configuration from a Prism Element cluster. Returns syslog targets, protocols, ports, and severity levels.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_alert_email_config
-  description: Get alert email notification configuration from a Prism Element cluster. Returns email recipients and alert notification rules.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_nfs_whitelists
-  description: Get global NFS whitelist configuration from a Prism Element cluster. Returns filesystem whitelists (NFS export ACLs) for cluster-wide access control.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_licensing_info
-  description: Get licensing information from a Prism Element cluster. Returns license type (Starter/Pro/Ultimate), expiry, and enabled cluster features.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_protection_domain
-  description: Get detailed configuration of a specific protection domain. Returns consistency groups, VM list, schedules, and replication config.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-  - name: name
-    type: string
-    desc: Name of the protection domain
-- name: pe_list_remote_sites
-  description: List remote sites (DR partner clusters) on a Prism Element cluster. Returns remote site names, addresses, replication bandwidth, and capabilities.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_replication_status
-  description: Get active replication status for a protection domain. Returns current replications, lag, and bandwidth usage.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-  - name: protection_domain
-    type: string
-    desc: Name of the protection domain
-- name: pe_list_unprotected_vms
-  description: List VMs not in any protection domain on a Prism Element cluster. Identifies compliance gaps where VMs lack DR protection.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_host_disks
-  description: Get physical disk inventory for a specific host. Returns disk model, serial number, firmware, tier (SSD/HDD), status, and capacity.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-  - name: host_uuid
-    type: string
-    desc: UUID of the host to get disk inventory for
-- name: pe_get_host_nics
-  description: Get network interface details for a specific host. Returns NIC name, speed, link state, MAC address, and switch info via LLDP.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-  - name: host_uuid
-    type: string
-    desc: UUID of the host to get NIC details for
-- name: pe_list_cvms
-  description: List Controller VMs (CVMs) on a Prism Element cluster. Returns CVM IP, memory allocation, power state, and associated host.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_volume_groups
-  description: List volume groups on a Prism Element cluster. Returns VG name, size, iSCSI target IQN, attached VMs, and CHAP config.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_volume_group
-  description: Get detailed volume group configuration. Returns disk list, client attachments, iSCSI details, and usage.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-  - name: uuid
-    type: string
-    desc: UUID of the volume group
-- name: pe_get_cluster_health
-  description: Get cluster data resiliency and health status. Returns domain fault tolerance status, rebuild capacity, and overall health.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_health_checks
-  description: List NCC-style health check results on a Prism Element cluster. Returns check names, statuses, and any warnings or failures.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_images
-  description: List images (ISOs, disk images) on a Prism Element cluster. Returns image name, type, state, size, and source URI.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_networks
-  description: List networks (VLANs) on a Prism Element cluster. Returns network name, VLAN ID, managed/unmanaged state, and IP pool configuration.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_get_metro_witness
-  description: Get Metro Availability witness server configuration. Returns witness address, status, and cluster association.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_dr_snapshots
-  description: List disaster recovery snapshots across remote sites. Returns snapshot IDs, PD names, remote site, and retention info.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: pe_list_pd_replications
-  description: List all active protection domain replications across the cluster. Returns replication status, progress, bandwidth, and remote site for all PDs.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-- name: list_subnets
-  description: List ALL subnets/VLANs in Prism Central (auto-paginates internally). Returns complete results in one call — no manual pagination needed.
-  arguments:
-  - name: filter
-    type: string
-    desc: OData filter expression. Examples: "name eq 'production-vlan'", "vlanId eq 100"
-    optional: true
-  - name: limit
-    type: integer
-    desc: Optional cap on results. Omit to get ALL subnets (default behavior).
-    optional: true
-- name: get_subnet
-  description: Get detailed subnet configuration including IP pools, DHCP config, and virtual switch assignment.
-  arguments:
-  - name: subnet_uuid
-    type: string
-    desc: The UUID (extId) of the subnet
-- name: list_images
-  description: List ALL disk images (ISOs, QCOW2) in the image library (auto-paginates internally). Returns complete results in one call — no manual pagination needed.
-  arguments:
-  - name: filter
-    type: string
-    desc: OData filter expression. Examples: "name eq 'ubuntu-22.04'", "type eq 'DISK_IMAGE'"
-    optional: true
-  - name: limit
-    type: integer
-    desc: Optional cap on results. Omit to get ALL images (default behavior).
-    optional: true
-- name: get_image
-  description: Get detailed information about a specific disk image by UUID. Returns size, type, source, and cluster placement.
-  arguments:
-  - name: image_uuid
-    type: string
-    desc: The UUID (extId) of the image
-- name: list_categories
-  description: List ALL category keys and values (auto-paginates internally). Returns complete results in one call — no manual pagination needed.
-  arguments:
-  - name: filter
-    type: string
-    desc: OData filter expression. Example: "key eq 'Environment'"
-    optional: true
-  - name: limit
-    type: integer
-    desc: Optional cap on results. Omit to get ALL categories (default behavior).
-    optional: true
-- name: get_category
-  description: Get all values for a specific category key. Example: category 'Environment' may have values 'Production', 'Dev', 'Test'.
-  arguments:
-  - name: category_uuid
-    type: string
-    desc: The UUID (extId) of the category
-- name: list_tasks
-  description: List ALL recent Nutanix tasks (auto-paginates internally). Returns complete results in one call — no manual pagination needed. Use filter to narrow by status (RUNNING, FAILED, SUCCEEDED).
-  arguments:
-  - name: filter
-    type: string
-    desc: OData filter expression. Examples: "status eq 'RUNNING'", "status eq 'FAILED'", "status eq 'SUCCEEDED'"
-    optional: true
-  - name: limit
-    type: integer
-    desc: Optional cap on results (default: 20).
-    optional: true
-- name: get_task
-  description: Get detailed status of a specific task by its UUID. Returns completion percentage, status, error details, and associated entities. Use this to verify whether an async operation (VM create, power on, etc.) succeeded.
-  arguments:
-  - name: task_uuid
-    type: string
-    desc: The UUID (extId) of the task to check
-- name: list_alerts
-  description: List ALL alerts from Prism Central (auto-paginates internally). Returns complete results in one call — no manual pagination needed. Supports filtering by severity and resolved status.
-  arguments:
-  - name: severity
-    type: string
-    desc: Filter by severity level.
-    optional: true
-  - name: resolved
-    type: boolean
-    desc: If true, show resolved alerts. If false, show only active. Default: false (active only).
-    optional: true
-  - name: filter
-    type: string
-    desc: OData filter expression for advanced filtering. Examples: "severity eq 'CRITICAL'", "creationTime gt '2026-05-01T00:00:00Z'"
-    optional: true
-  - name: limit
-    type: integer
-    desc: Optional cap on results. Default: 50.
-    optional: true
-- name: get_alert
-  description: Get full details of a specific alert by UUID. Returns affected entities, resolution guidance, parameters, and alert lifecycle information.
-  arguments:
-  - name: alert_uuid
-    type: string
-    desc: The UUID (extId) of the alert.
-- name: acknowledge_alert
-  description: Acknowledge or resolve an alert by UUID. Acknowledging marks the alert as seen; resolving marks it as fixed.
-  arguments:
-  - name: alert_uuid
-    type: string
-    desc: The UUID (extId) of the alert to acknowledge/resolve.
-  - name: action
-    type: string
-    desc: Action to take. Default: ACKNOWLEDGE.
-    optional: true
-- name: assign_category
-  description: Assign a category key:value pair to a VM. Categories are Nutanix's primary mechanism for resource organization, security policy targeting (Flow microsegmentation), and DR policy assignment.
-  arguments:
-  - name: vm_uuid
-    type: string
-    desc: The UUID (extId) of the VM to tag.
-  - name: category_key
-    type: string
-    desc: Category key (e.g., 'Environment', 'AppType', 'Backup').
-  - name: category_value
-    type: string
-    desc: Category value (e.g., 'Production', 'WebServer', 'Gold').
-- name: remove_category
-  description: Remove a category key:value assignment from a VM. Only removes the specified category; other categories remain intact.
-  arguments:
-  - name: vm_uuid
-    type: string
-    desc: The UUID (extId) of the VM.
-  - name: category_key
-    type: string
-    desc: Category key to remove.
-  - name: category_value
-    type: string
-    desc: Category value to remove.
-- name: list_entities_by_category
-  description: Find ALL VMs tagged with a specific category key:value pair (auto-paginates internally). Returns complete results in one call — no manual pagination needed.
-  arguments:
-  - name: category_key
-    type: string
-    desc: Category key to query (e.g., 'Environment').
-  - name: category_value
-    type: string
-    desc: Category value to query (e.g., 'Production').
-  - name: limit
-    type: integer
-    desc: Optional cap on results. Default: 50.
-    optional: true
-- name: snapshot_vm
-  description: Create an on-demand snapshot (recovery point) of a VM. Returns the recovery point ID and task UUID for tracking. Use before mutating operations as a safety net.
-  arguments:
-  - name: vm_uuid
-    type: string
-    desc: The UUID (extId) of the VM to snapshot.
-  - name: name
-    type: string
-    desc: Optional name for the recovery point. Defaults to auto-generated.
-    optional: true
-  - name: expiration_days
-    type: integer
-    desc: Number of days before the recovery point expires. Default: 30.
-    optional: true
-- name: list_vm_snapshots
-  description: List ALL recovery points (snapshots) for a specific VM (auto-paginates internally). Returns complete results in one call — no manual pagination needed.
-  arguments:
-  - name: vm_uuid
-    type: string
-    desc: The UUID (extId) of the VM whose snapshots to list.
-  - name: limit
-    type: integer
-    desc: Optional cap on results. Default: 20.
-    optional: true
-- name: restore_vm_snapshot
-  description: Restore a VM to a previous recovery point (snapshot). This reverts the VM's disks and configuration to the snapshot state. The VM should be powered off before restore.
-  arguments:
-  - name: recovery_point_id
-    type: string
-    desc: The UUID of the recovery point to restore from.
-  - name: vm_uuid
-    type: string
-    desc: The UUID of the VM to restore.
-- name: generate_asbuilt
-  description: Generate an infrastructure AsBuilt report from a Nutanix Prism Element cluster. Queries live cluster data and returns a structured Markdown report with tables and Mermaid topology diagrams. Use 'sections' to include only specific parts. Available sections: overview, hosts, vms, networks, storage, protection_domains, alerts, health.
-  arguments:
-  - name: pe_host
-    type: string
-    desc: Prism Element CVM IP address or hostname
-  - name: sections
-    type: array
-    desc: Which sections to include in the report. Defaults to all sections if omitted. Options: overview, hosts, vms, networks, storage, protection_domains, alerts, health
-    optional: true
-- name: export_asbuilt_html
-  description: Convert an AsBuilt Markdown report to a self-contained HTML file with print-optimized CSS. Open in a browser and use Ctrl+P / Cmd+P to save as PDF. Includes Mermaid diagram rendering via CDN. Pass the markdown string from generate_asbuilt output.
-  arguments:
-  - name: markdown
-    type: string
-    desc: The Markdown report content from generate_asbuilt
-  - name: title
-    type: string
-    desc: Report title (defaults to 'Nutanix AsBuilt Report')
-    optional: true
+  list_vms:
+    description: 'List ALL virtual machines on Nutanix (auto-paginates internally). Returns complete results in one call — no manual pagination needed. Use ''cluster_name'' to filter VMs to a specific cluster by name. Use ''filter'' to narrow results via OData. Use ''limit'' only if you want a subset.'
+  get_vm:
+    description: 'Get detailed information about a specific VM by its UUID. Returns full configuration including CPU, memory, disks, and NICs.'
+  power_on_vm:
+    description: 'Power on a virtual machine.'
+  power_off_vm:
+    description: 'Power off a virtual machine. Uses ACPI shutdown by default (guest-initiated).'
+  create_vm:
+    description: 'Create a new virtual machine. Requires name, cluster UUID, and basic specs.'
+  update_vm:
+    description: 'Update a virtual machine''s configuration (CPU, memory, name, description). The VM should be powered off for CPU/memory changes. Uses ETag-based concurrency control. Returns a task UUID for status tracking.'
+  delete_vm:
+    description: 'Delete a virtual machine permanently. This action cannot be undone. Requires explicit confirmation. Returns a task UUID for status tracking.'
+  clone_vm:
+    description: 'Clone an existing virtual machine. Creates a copy with a new name. Returns a task UUID for status tracking.'
+  list_clusters:
+    description: 'List ALL Nutanix clusters registered with Prism Central (auto-paginates internally). Returns complete results in one call — no manual pagination needed.'
+  get_cluster:
+    description: 'Get detailed information about a specific cluster by UUID. Returns configuration, network, storage, and health details.'
+  list_hosts:
+    description: 'List ALL hypervisor hosts (auto-paginates internally). Returns complete results in one call — no manual pagination needed. Optionally filter by cluster UUID.'
+  get_host:
+    description: 'Get detailed information about a specific host by UUID. Returns hardware specs, hypervisor info, and resource usage.'
+  list_storage_containers:
+    description: 'List ALL storage containers (auto-paginates internally). Returns complete results in one call — no manual pagination needed.'
+  pe_get_cluster_info:
+    description: 'Get cluster info directly from a Prism Element node. Returns AOS version, cluster name, storage capacity, and health.'
+  pe_list_vms:
+    description: 'List VMs on a specific Prism Element cluster. Returns VM names, UUIDs, power states, and resource allocation.'
+  pe_list_hosts:
+    description: 'List hypervisor hosts on a Prism Element cluster. Returns host names, IPs, hardware specs, and CVM info.'
+  pe_list_containers:
+    description: 'List storage containers on a Prism Element cluster. Returns names, capacity, usage, replication factor, and policies.'
+  pe_list_storage_pools:
+    description: 'List storage pools on a Prism Element cluster. Returns pool names, capacity, and disk composition.'
+  pe_list_disks:
+    description: 'List physical disks on a Prism Element cluster. Returns disk type (SSD/HDD), status, capacity, and location.'
+  pe_list_alerts:
+    description: 'List alerts on a Prism Element cluster. Returns alert titles, severity, timestamps, and affected entities.'
+  pe_list_protection_domains:
+    description: 'List protection domains on a Prism Element cluster. Returns PD names, protected entities, schedules, and replication state.'
+  pe_list_snapshots:
+    description: 'List snapshots for a protection domain on a Prism Element cluster.'
+  pe_get_auth_config:
+    description: 'Get authentication configuration from a Prism Element cluster. Returns auth types, directory services (LDAP/AD), and local account settings.'
+  pe_get_smtp_config:
+    description: 'Get SMTP server configuration from a Prism Element cluster. Returns relay server, port, sender address, and security settings.'
+  pe_get_snmp_config:
+    description: 'Get SNMP configuration from a Prism Element cluster. Returns SNMP traps, transports, users, and community strings.'
+  pe_get_syslog_config:
+    description: 'Get remote syslog server configuration from a Prism Element cluster. Returns syslog targets, protocols, ports, and severity levels.'
+  pe_get_alert_email_config:
+    description: 'Get alert email notification configuration from a Prism Element cluster. Returns email recipients and alert notification rules.'
+  pe_get_nfs_whitelists:
+    description: 'Get global NFS whitelist configuration from a Prism Element cluster. Returns filesystem whitelists (NFS export ACLs) for cluster-wide access control.'
+  pe_get_licensing_info:
+    description: 'Get licensing information from a Prism Element cluster. Returns license type (Starter/Pro/Ultimate), expiry, and enabled cluster features.'
+  pe_get_protection_domain:
+    description: 'Get detailed configuration of a specific protection domain. Returns consistency groups, VM list, schedules, and replication config.'
+  pe_list_remote_sites:
+    description: 'List remote sites (DR partner clusters) on a Prism Element cluster. Returns remote site names, addresses, replication bandwidth, and capabilities.'
+  pe_get_replication_status:
+    description: 'Get active replication status for a protection domain. Returns current replications, lag, and bandwidth usage.'
+  pe_list_unprotected_vms:
+    description: 'List VMs not in any protection domain on a Prism Element cluster. Identifies compliance gaps where VMs lack DR protection.'
+  pe_get_host_disks:
+    description: 'Get physical disk inventory for a specific host. Returns disk model, serial number, firmware, tier (SSD/HDD), status, and capacity.'
+  pe_get_host_nics:
+    description: 'Get network interface details for a specific host. Returns NIC name, speed, link state, MAC address, and switch info via LLDP.'
+  pe_list_cvms:
+    description: 'List Controller VMs (CVMs) on a Prism Element cluster. Returns CVM IP, memory allocation, power state, and associated host.'
+  pe_list_volume_groups:
+    description: 'List volume groups on a Prism Element cluster. Returns VG name, size, iSCSI target IQN, attached VMs, and CHAP config.'
+  pe_get_volume_group:
+    description: 'Get detailed volume group configuration. Returns disk list, client attachments, iSCSI details, and usage.'
+  pe_get_cluster_health:
+    description: 'Get cluster data resiliency and health status. Returns domain fault tolerance status, rebuild capacity, and overall health.'
+  pe_list_health_checks:
+    description: 'List NCC-style health check results on a Prism Element cluster. Returns check names, statuses, and any warnings or failures.'
+  pe_list_images:
+    description: 'List images (ISOs, disk images) on a Prism Element cluster. Returns image name, type, state, size, and source URI.'
+  pe_list_networks:
+    description: 'List networks (VLANs) on a Prism Element cluster. Returns network name, VLAN ID, managed/unmanaged state, and IP pool configuration.'
+  pe_get_metro_witness:
+    description: 'Get Metro Availability witness server configuration. Returns witness address, status, and cluster association.'
+  pe_list_dr_snapshots:
+    description: 'List disaster recovery snapshots across remote sites. Returns snapshot IDs, PD names, remote site, and retention info.'
+  pe_list_pd_replications:
+    description: 'List all active protection domain replications across the cluster. Returns replication status, progress, bandwidth, and remote site for all PDs.'
+  list_subnets:
+    description: 'List ALL subnets/VLANs in Prism Central (auto-paginates internally). Returns complete results in one call — no manual pagination needed.'
+  get_subnet:
+    description: 'Get detailed subnet configuration including IP pools, DHCP config, and virtual switch assignment.'
+  list_images:
+    description: 'List ALL disk images (ISOs, QCOW2) in the image library (auto-paginates internally). Returns complete results in one call — no manual pagination needed.'
+  get_image:
+    description: 'Get detailed information about a specific disk image by UUID. Returns size, type, source, and cluster placement.'
+  list_categories:
+    description: 'List ALL category keys and values (auto-paginates internally). Returns complete results in one call — no manual pagination needed.'
+  get_category:
+    description: 'Get all values for a specific category key. Example: category ''Environment'' may have values ''Production'', ''Dev'', ''Test''.'
+  list_tasks:
+    description: 'List ALL recent Nutanix tasks (auto-paginates internally). Returns complete results in one call — no manual pagination needed. Use filter to narrow by status (RUNNING, FAILED, SUCCEEDED).'
+  get_task:
+    description: 'Get detailed status of a specific task by its UUID. Returns completion percentage, status, error details, and associated entities. Use this to verify whether an async operation (VM create, power on, etc.) succeeded.'
+  list_alerts:
+    description: 'List ALL alerts from Prism Central (auto-paginates internally). Returns complete results in one call — no manual pagination needed. Supports filtering by severity and resolved status.'
+  get_alert:
+    description: 'Get full details of a specific alert by UUID. Returns affected entities, resolution guidance, parameters, and alert lifecycle information.'
+  acknowledge_alert:
+    description: 'Acknowledge or resolve an alert by UUID. Acknowledging marks the alert as seen; resolving marks it as fixed.'
+  assign_category:
+    description: 'Assign a category key:value pair to a VM. Categories are Nutanix''s primary mechanism for resource organization, security policy targeting (Flow microsegmentation), and DR policy assignment.'
+  remove_category:
+    description: 'Remove a category key:value assignment from a VM. Only removes the specified category; other categories remain intact.'
+  list_entities_by_category:
+    description: 'Find ALL VMs tagged with a specific category key:value pair (auto-paginates internally). Returns complete results in one call — no manual pagination needed.'
+  snapshot_vm:
+    description: 'Create an on-demand snapshot (recovery point) of a VM. Returns the recovery point ID and task UUID for tracking. Use before mutating operations as a safety net.'
+  list_vm_snapshots:
+    description: 'List ALL recovery points (snapshots) for a specific VM (auto-paginates internally). Returns complete results in one call — no manual pagination needed.'
+  restore_vm_snapshot:
+    description: 'Restore a VM to a previous recovery point (snapshot). This reverts the VM''s disks and configuration to the snapshot state. The VM should be powered off before restore.'
+  generate_asbuilt:
+    description: 'Generate an infrastructure AsBuilt report from a Nutanix Prism Element cluster. Queries live cluster data and returns a structured Markdown report with tables and Mermaid topology diagrams. Use ''sections'' to include only specific parts. Available sections: overview, hosts, vms, networks, storage, protection_domains, alerts, health.'
+  export_asbuilt_html:
+    description: 'Convert an AsBuilt Markdown report to a self-contained HTML file with print-optimized CSS. Open in a browser and use Ctrl+P / Cmd+P to save as PDF. Includes Mermaid diagram rendering via CDN. Pass the markdown string from generate_asbuilt output.'
+  get_project_architecture:
+    description: 'Get the Nutanix MCP Server project architecture documentation. Returns a Markdown document with component diagrams, API layer details, tool inventory, design decisions, deployment topology, and file structure.'
