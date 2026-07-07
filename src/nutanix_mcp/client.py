@@ -63,6 +63,7 @@ class NutanixClient:
         self.settings = settings
         self._client: Optional[httpx.AsyncClient] = None
         self._pe_clients: dict[str, httpx.AsyncClient] = {}
+        self._pe_host_cache: dict[str, str] = {}
         self.sdk = NutanixSDKClient(settings)
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -307,26 +308,89 @@ class NutanixClient:
 
     # ─── Prism Element v2 API methods ─────────────────────────────────────
 
-    def _validate_pe_host(self, pe_host: str) -> None:
-        """Validate that pe_host is allowed before sending credentials."""
-        # Basic format validation: must look like an IP or hostname
+    _IP_PATTERN = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+    _UUID_PATTERN = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+
+    def _validate_pe_host_format(self, pe_host: str) -> None:
+        """Reject inputs that can't be an IP, hostname, cluster name, or UUID."""
         if not re.match(r"^[a-zA-Z0-9._-]+$", pe_host):
             raise ValidationError(
                 "Invalid PE host format: contains disallowed characters",
                 status_code=None,
             )
 
-        # Check against allowlist
-        if not self.settings.is_pe_host_allowed(pe_host):
-            raise ValidationError(
-                "PE host not in allowlist. Add it to NUTANIX_ALLOWED_PE_HOSTS.",
-                status_code=None,
-            )
+    async def resolve_pe_host(self, pe_host: str) -> str:
+        """Resolve a cluster name or UUID to its Prism Element external IP.
+
+        Accepts an IP address (returned as-is), a cluster UUID, a cluster
+        name (exact then case-insensitive substring match), or a plain
+        hostname (returned as-is when no cluster matches). Results are
+        cached for the lifetime of the client.
+        """
+        self._validate_pe_host_format(pe_host)
+
+        if self._IP_PATTERN.match(pe_host):
+            return pe_host
+
+        if pe_host in self._pe_host_cache:
+            return self._pe_host_cache[pe_host]
+
+        resolved = pe_host
+        sdk = self.sdk
+        try:
+            if self._UUID_PATTERN.match(pe_host):
+                response = await sdk.call(sdk.cluster_api.get_cluster_by_id, pe_host)
+                resolved = self._external_ip_of(response.data) or pe_host
+            else:
+                clusters = await sdk.list_all(
+                    sdk.cluster_api.list_clusters,
+                    _filter=f"name eq '{pe_host}'",
+                )
+                if not clusters:
+                    all_clusters = await sdk.list_all(sdk.cluster_api.list_clusters)
+                    clusters = [c for c in all_clusters if c.name and pe_host.lower() in c.name.lower()]
+                for c in clusters:
+                    ip = self._external_ip_of(c)
+                    if ip:
+                        resolved = ip
+                        break
+        except Exception:
+            # Resolution is best-effort: fall through to the raw value so a
+            # plain DNS hostname keeps working even if PC is unreachable.
+            resolved = pe_host
+
+        self._pe_host_cache[pe_host] = resolved
+        return resolved
+
+    @staticmethod
+    def _external_ip_of(cluster: Any) -> Optional[str]:
+        """Extract the external IPv4 address from an SDK cluster model."""
+        if cluster is None:
+            return None
+        network = getattr(cluster, "network", None)
+        addr = getattr(network, "external_address", None)
+        ipv4 = getattr(addr, "ipv4", None)
+        return getattr(ipv4, "value", None)
+
+    def _validate_pe_host(self, pe_host: str, raw_input: Optional[str] = None) -> None:
+        """Validate that pe_host is allowed before sending credentials.
+
+        The allowlist accepts either the resolved address or the original
+        user input (so operators may allowlist cluster names or IPs).
+        """
+        self._validate_pe_host_format(pe_host)
+
+        if self.settings.is_pe_host_allowed(pe_host):
+            return
+        if raw_input and self.settings.is_pe_host_allowed(raw_input):
+            return
+        raise ValidationError(
+            "PE host not in allowlist. Add it to NUTANIX_ALLOWED_PE_HOSTS.",
+            status_code=None,
+        )
 
     async def _get_pe_client(self, pe_host: str) -> httpx.AsyncClient:
         """Get or create an HTTP client for a Prism Element node."""
-        self._validate_pe_host(pe_host)
-
         if pe_host not in self._pe_clients or self._pe_clients[pe_host].is_closed:
             self._pe_clients[pe_host] = httpx.AsyncClient(
                 base_url=f"https://{pe_host}:{self.settings.port}/api/nutanix/{self.V2_VERSION}",
@@ -349,10 +413,12 @@ class NutanixClient:
         """GET request against a Prism Element v1 API.
 
         Args:
-            pe_host: Prism Element CVM IP or hostname
+            pe_host: PE CVM/cluster IP, hostname, cluster name, or cluster UUID
             path: Resource path (e.g., 'authconfig', 'license')
         """
-        self._validate_pe_host(pe_host)
+        resolved = await self.resolve_pe_host(pe_host)
+        self._validate_pe_host(resolved, raw_input=pe_host)
+        pe_host = resolved
         client = await self._get_client_for_pe_v1(pe_host)
 
         try:
@@ -398,9 +464,12 @@ class NutanixClient:
         """GET request against a Prism Element v2 API.
 
         Args:
-            pe_host: Prism Element CVM IP or hostname
+            pe_host: PE CVM/cluster IP, hostname, cluster name, or cluster UUID
             path: Resource path (e.g., 'vms', 'hosts', 'cluster')
         """
+        resolved = await self.resolve_pe_host(pe_host)
+        self._validate_pe_host(resolved, raw_input=pe_host)
+        pe_host = resolved
         client = await self._get_pe_client(pe_host)
 
         try:

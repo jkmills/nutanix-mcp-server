@@ -214,8 +214,14 @@ graph TD
   v4.1 VM API, so `list_vms` resolves cluster name → UUID then filters client-side
 - **Async wrapping**: SDK calls are synchronous; wrapped in `asyncio.to_thread()`
   to avoid blocking the MCP event loop
+- **PE host resolution**: every `pe_*` tool accepts an IP, hostname, cluster
+  name, or cluster UUID; names/UUIDs are resolved to the cluster's external IP
+  via Prism Central and cached
 - **PE host allowlist**: Prism Element hosts must be in `NUTANIX_ALLOWED_PE_HOSTS`
   before credentials are sent, preventing SSRF
+- **Workflows live outside the server**: AsBuilt report generation is a
+  standalone MCP *client* CLI (`asbuilt/`), not a tool — the server exposes
+  primitives; documents are composed outside the model's context window
 
 ## Deployment
 
@@ -236,21 +242,24 @@ src/nutanix_mcp/
 ├── __init__.py          # Package entry point
 ├── __main__.py          # CLI runner
 ├── server.py            # MCP Server setup, handler dispatch
-├── client.py            # Async HTTP client (PC v4/v3, PE v2/v1)
+├── client.py            # Async HTTP client (PC v4/v3, PE v2/v1, PE resolution)
 ├── sdk_client.py        # Nutanix v4 SDK wrapper (lazy init, pagination)
 ├── config.py            # Settings (Pydantic, env vars)
 ├── resources.py         # MCP resource templates
 ├── prompts.py           # MCP prompt templates
 └── tools/
-    ├── __init__.py      # Tool registry (get_all_tools)
+    ├── __init__.py      # Tool registry (titles, annotations)
     ├── vm.py            # VM lifecycle (8 tools)
     ├── cluster.py       # Clusters & hosts (5 tools)
     ├── networking.py    # Subnets, images, categories (6 tools)
     ├── prism_element.py # PE direct access (32 tools)
-    ├── task.py          # Task tracking (2 tools)
+    ├── task.py          # Task tracking (3 tools)
     ├── alert.py         # Alert management (3 tools)
     ├── category.py      # Category tagging (3 tools)
-    ├── snapshot.py      # VM snapshots (3 tools)
-    └── asbuilt.py       # AsBuilt reports (2 tools)
+    └── snapshot.py      # VM snapshots (3 tools)
+
+asbuilt/                 # Standalone AsBuilt CLI (MCP client, not a tool)
+├── cli.py               # nutanix-asbuilt entry point
+└── report.py            # Collectors (via MCP tools) + renderers
 ```
 """

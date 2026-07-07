@@ -1,8 +1,13 @@
 """Task tracking tools using Nutanix v4 prism namespace."""
 
+import asyncio
+import time
 from typing import Any
 
 from nutanix_mcp.client import NutanixClient
+
+# Task statuses that mean the task is still in flight
+_PENDING_STATUSES = {"QUEUED", "RUNNING", "SUSPENDED"}
 
 # ─── Tool Definitions ─────────────────────────────────────────────────────────
 
@@ -47,6 +52,30 @@ TASK_TOOLS: list[dict] = [
                 "task_uuid": {
                     "type": "string",
                     "description": "The UUID (extId) of the task to check",
+                },
+            },
+            "required": ["task_uuid"],
+        },
+    },
+    {
+        "name": "wait_task",
+        "description": (
+            "Wait for an async Nutanix task to reach a terminal state "
+            "(SUCCEEDED, FAILED, CANCELED). Polls internally so you don't have "
+            "to call get_task in a loop. Returns the final task status, or the "
+            "latest status with timedOut=true if the timeout elapses first."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "task_uuid": {
+                    "type": "string",
+                    "description": "The UUID (extId) of the task to wait for",
+                },
+                "timeout_seconds": {
+                    "type": "integer",
+                    "description": "Maximum time to wait before returning (default: 60, max: 300)",
+                    "default": 60,
                 },
             },
             "required": ["task_uuid"],
@@ -116,9 +145,39 @@ async def handle_get_task(client: NutanixClient, arguments: dict[str, Any]) -> d
     }
 
 
+async def handle_wait_task(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
+    """Poll a task until it reaches a terminal state or the timeout elapses."""
+    task_uuid = arguments["task_uuid"]
+    timeout_seconds = min(int(arguments.get("timeout_seconds", 60)), 300)
+    poll_interval = 3.0
+
+    deadline = time.monotonic() + timeout_seconds
+    while True:
+        result = await handle_get_task(client, {"task_uuid": task_uuid})
+        status = str(result.get("status") or "").upper()
+        # SDK enums may render as e.g. "TaskStatus.SUCCEEDED"
+        status = status.rsplit(".", 1)[-1]
+
+        if status and status not in _PENDING_STATUSES:
+            result["timedOut"] = False
+            return result
+
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            result["timedOut"] = True
+            result["note"] = (
+                f"Task still {status or 'PENDING'} after {timeout_seconds}s. "
+                "Call wait_task or get_task again to keep tracking it."
+            )
+            return result
+
+        await asyncio.sleep(min(poll_interval, remaining))
+
+
 # ─── Handler Dispatch ─────────────────────────────────────────────────────────
 
 TASK_HANDLERS: dict[str, Any] = {
     "list_tasks": handle_list_tasks,
     "get_task": handle_get_task,
+    "wait_task": handle_wait_task,
 }

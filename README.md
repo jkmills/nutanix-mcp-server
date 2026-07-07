@@ -7,17 +7,19 @@ An MCP (Model Context Protocol) server that exposes Nutanix Prism Central and Pr
 
 ## Features
 
-- **65 tools** — Full coverage of Prism Central v4 and Prism Element v2 APIs
+- **63 tools** — Full coverage of Prism Central v4 and Prism Element v2 APIs
 - **Prism Central (v4 API)** — VM lifecycle, snapshots, clusters, hosts, networking, categories, alerts, tasks
 - **Prism Element (v2 API)** — Direct cluster access for storage, disks, data protection, system config, health checks
+- **PE host resolution** — Every `pe_*` tool accepts a cluster **name or UUID** in `pe_host`; it's resolved to the cluster's external IP via Prism Central automatically
 - **Tool annotations** — Every tool carries MCP `readOnlyHint`/`destructiveHint`/`idempotentHint` metadata, so clients can require approval for destructive operations (`delete_vm`, `power_off_vm`, …) and fast-track read-only ones
 - **Structured output** — Results are returned as MCP `structuredContent` with a JSON text fallback; failures return proper `isError` results with actionable messages
 - **ETag concurrency control** — All v4 mutations send `If-Match` automatically, as required by Nutanix v4 APIs
-- **AsBuilt Reports** — Generate comprehensive HTML reports with interactive TOC, Mermaid topology diagrams, and print-to-PDF support
+- **Task ergonomics** — Mutations return a task UUID; `wait_task` blocks until the task completes so agents don't hand-roll polling loops
+- **AsBuilt reports** — Standalone `nutanix-asbuilt` CLI (an MCP client) composes full cluster documentation from the server's tools; see [`asbuilt/`](asbuilt/README.md)
 - **API version routing** — Prefers v4, falls back to v3/v2 when needed
 - **Async** — Non-blocking HTTP client using httpx; official Nutanix SDK calls run off the event loop
 
-## Available Tools (65)
+## Available Tools (63)
 
 ### VM Management — Prism Central v4
 | Tool | Description |
@@ -72,6 +74,7 @@ An MCP (Model Context Protocol) server that exposes Nutanix Prism Central and Pr
 | `acknowledge_alert` | Acknowledge or resolve an alert |
 | `list_tasks` | List recent async tasks with status |
 | `get_task` | Get task completion status and error details |
+| `wait_task` | Wait (poll internally) until a task reaches a terminal state |
 
 ### Prism Element — Cluster & Hosts (v2 direct access)
 | Tool | Description |
@@ -125,14 +128,21 @@ An MCP (Model Context Protocol) server that exposes Nutanix Prism Central and Pr
 | `pe_get_licensing_info` | License type (Starter/Pro/Ultimate) and features |
 | `pe_get_metro_witness` | Metro Availability witness server config |
 
-### AsBuilt Reports
-| Tool | Description |
-|------|-------------|
-| `generate_asbuilt` | Generate a comprehensive infrastructure report from a PE cluster — overview, system config, hosts, storage, VMs, networks, data protection, alerts, health checks, and Mermaid topology diagram |
-| `export_asbuilt_html` | Convert AsBuilt Markdown to self-contained HTML with interactive TOC sidebar and print-optimized CSS for PDF export |
-| `get_project_architecture` | Get the Nutanix MCP Server project architecture documentation |
+### AsBuilt Reports (standalone CLI)
 
-AsBuilt reports include 9 sections: overview, system, hosts (with per-host disk inventory), VMs, networks, storage, data protection (with remote sites and unprotected VM detection), alerts, and health checks. Hypervisor names are mapped automatically (kKvm → AHV). The HTML export features an interactive table of contents with scroll-spy that is hidden when printing to PDF.
+Report generation is a workflow, not an MCP primitive, so it ships as a
+standalone **MCP client** rather than a tool — the server stays lean and no
+large document flows through model context:
+
+```bash
+nutanix-asbuilt <cluster-name-or-ip> --html
+```
+
+The CLI spawns this MCP server over stdio and composes a 9-section report
+(overview, system, hosts with per-host disk inventory, VMs, networks,
+storage, data protection, alerts, health) with a Mermaid topology diagram
+and print-to-PDF HTML export. See [`asbuilt/README.md`](asbuilt/README.md).
+For AI-assisted reports, use the `as_built_report` MCP prompt instead.
 
 ### MCP Resources (URI-based browsing)
 
@@ -405,10 +415,17 @@ The gateway handles routing, lifecycle management, and credential isolation.
 | v3 (fallback) | `/api/nutanix/v3/{resource}/list` | Resources not yet in v4 |
 | v2 (PE direct) | `https://{pe_ip}:9440/api/nutanix/v2.0/{resource}` | Per-cluster storage, disks, alerts |
 
-## Discovering Prism Element Hosts
+## Targeting Prism Element Clusters
 
-Use `list_clusters` to find cluster UUIDs, then `list_hosts` to find CVM IPs.
-Those CVM IPs can be used as `pe_host` in the Prism Element tools.
+Every `pe_*` tool takes a `pe_host` argument that accepts any of:
+
+- a Prism Element / cluster virtual IP (used as-is),
+- a hostname (used as-is),
+- a **cluster name** or **cluster UUID** — resolved to the cluster's
+  external IP via Prism Central and cached for the session.
+
+If `NUTANIX_ALLOWED_PE_HOSTS` is set, either the resolved address or the
+original input must be on the allowlist before credentials are sent.
 
 ## Development
 

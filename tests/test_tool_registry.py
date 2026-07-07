@@ -9,7 +9,7 @@ WRITE_TOOLS = set(_WRITE_TOOL_HINTS)
 
 def test_all_tools_have_required_fields():
     tools = get_all_tools()
-    assert len(tools) >= 65
+    assert len(tools) == 63
     for tool in tools:
         assert tool["name"], "tool missing name"
         assert tool["description"], f"{tool['name']} missing description"
@@ -48,7 +48,7 @@ def test_titles_are_human_readable():
     assert by_name["list_vms"] == "List VMs"
     assert by_name["pe_list_cvms"] == "PE: List CVMs"
     assert by_name["pe_get_smtp_config"] == "PE: Get SMTP Config"
-    assert by_name["generate_asbuilt"] == "Generate AsBuilt"
+    assert by_name["wait_task"] == "Wait Task"
 
 
 def test_every_tool_has_a_handler():

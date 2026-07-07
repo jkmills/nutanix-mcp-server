@@ -107,6 +107,8 @@ tools:
     description: 'List ALL recent Nutanix tasks (auto-paginates internally). Returns complete results in one call — no manual pagination needed. Use filter to narrow by status (RUNNING, FAILED, SUCCEEDED).'
   get_task:
     description: 'Get detailed status of a specific task by its UUID. Returns completion percentage, status, error details, and associated entities. Use this to verify whether an async operation (VM create, power on, etc.) succeeded.'
+  wait_task:
+    description: 'Wait for an async Nutanix task to reach a terminal state (SUCCEEDED, FAILED, CANCELED). Polls internally so you don''t have to call get_task in a loop. Returns the final task status, or the latest status with timedOut=true if the timeout elapses first.'
   list_alerts:
     description: 'List ALL alerts from Prism Central (auto-paginates internally). Returns complete results in one call — no manual pagination needed. Supports filtering by severity and resolved status.'
   get_alert:
@@ -122,12 +124,6 @@ tools:
   snapshot_vm:
     description: 'Create an on-demand snapshot (recovery point) of a VM. Returns the recovery point ID and task UUID for tracking. Use before mutating operations as a safety net.'
   list_vm_snapshots:
-    description: 'List ALL recovery points (snapshots) for a specific VM (auto-paginates internally). Returns complete results in one call — no manual pagination needed.'
+    description: 'List recovery points (snapshots) for a specific VM. Returns up to ''limit'' most relevant results (default: 20).'
   restore_vm_snapshot:
     description: 'Restore a VM to a previous recovery point (snapshot). This reverts the VM''s disks and configuration to the snapshot state. The VM should be powered off before restore.'
-  generate_asbuilt:
-    description: 'Generate an infrastructure AsBuilt report from a Nutanix Prism Element cluster. Accepts a PE IP address, cluster name, or cluster UUID — cluster names and UUIDs are auto-resolved to the PE external IP via Prism Central. Queries live cluster data and returns a structured Markdown report with tables and Mermaid topology diagrams. Use ''sections'' to include only specific parts. Available sections: overview, system, hosts, vms, networks, storage, protection_domains, alerts, health.'
-  export_asbuilt_html:
-    description: 'Convert an AsBuilt Markdown report to a self-contained HTML file with print-optimized CSS. Open in a browser and use Ctrl+P / Cmd+P to save as PDF. Includes Mermaid diagram rendering via CDN. Pass the markdown string from generate_asbuilt output.'
-  get_project_architecture:
-    description: 'Get the Nutanix MCP Server project architecture documentation. Returns a Markdown document with component diagrams, API layer details, tool inventory, design decisions, deployment topology, and file structure.'

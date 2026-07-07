@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-07-07
+
+### Changed
+
+- **AsBuilt moved out of the MCP tool surface.** Report generation is a
+  workflow, not a primitive: `generate_asbuilt` fired dozens of API calls and
+  returned a large document through model context, and `export_asbuilt_html`
+  was pure text transformation. Both (plus `get_project_architecture`, which
+  duplicated the `nutanix://asbuilt/project` resource) are removed from the
+  server. The replacement is `nutanix-asbuilt` — a standalone CLI in
+  `asbuilt/` that runs as a real **MCP client**: it spawns the server over
+  stdio and composes the same 9-section report (with Mermaid topology and
+  print-to-PDF HTML) from the granular `pe_*` tools. AI-assisted reports are
+  still available via the `as_built_report` MCP prompt. Tool count: 63.
+
+### Added
+
+- **PE host resolution on every `pe_*` tool** — `pe_host` now accepts a
+  cluster name or cluster UUID in addition to an IP/hostname; names and UUIDs
+  are resolved to the cluster's external IP via Prism Central and cached
+  (previously only `generate_asbuilt` could do this). The
+  `NUTANIX_ALLOWED_PE_HOSTS` allowlist matches either the resolved address or
+  the original input.
+- **`wait_task` tool** — blocks until an async task reaches a terminal state
+  (with timeout), so agents no longer hand-roll `get_task` polling loops.
+- **Richer PE tool output for documentation parity**:
+  - `pe_get_cluster_info`: NCC version, data-services IP, subnets, DNS/NTP,
+    timezone, operation mode, redundancy factor, fault tolerance domain
+  - `pe_list_hosts`: IPMI address, node serial, block model/serial, BMC and
+    BIOS versions, CPU capacity (GHz), hypervisor version, VM count
+  - `pe_list_vms`: optional `include_disk_config` returns total disk capacity
+  - `pe_list_containers`: dedup setting; `pe_list_remote_sites`: metro
+    readiness and wire compression; `pe_list_unprotected_vms`: vCPU/memory
+- `pe_get_auth_config` / `pe_get_snmp_config` tolerate both camelCase and
+  snake_case field names across AOS builds.
+- MCP catalog (`mcp-catalog/nutanix-mcp-server.yaml`) regenerated from the
+  live tool registry.
+
 ## [0.4.0] - 2026-07-07
 
 ### Fixed

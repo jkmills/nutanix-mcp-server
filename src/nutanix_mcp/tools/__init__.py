@@ -11,7 +11,6 @@ from typing import Any
 from mcp.types import ToolAnnotations
 
 from nutanix_mcp.tools.alert import ALERT_TOOLS
-from nutanix_mcp.tools.asbuilt import ASBUILT_TOOLS
 from nutanix_mcp.tools.category import CATEGORY_TOOLS
 from nutanix_mcp.tools.cluster import CLUSTER_TOOLS
 from nutanix_mcp.tools.networking import NETWORKING_TOOLS
@@ -49,8 +48,6 @@ _TITLE_WORDS: dict[str, str] = {
     "smtp": "SMTP",
     "snmp": "SNMP",
     "nfs": "NFS",
-    "html": "HTML",
-    "asbuilt": "AsBuilt",
 }
 
 
@@ -87,7 +84,7 @@ def get_all_tools() -> list[dict[str, Any]]:
     """Return all registered tool definitions, enriched with MCP metadata."""
     tools = (
         VM_TOOLS + CLUSTER_TOOLS + PE_TOOLS + NETWORKING_TOOLS + TASK_TOOLS
-        + ALERT_TOOLS + CATEGORY_TOOLS + SNAPSHOT_TOOLS + ASBUILT_TOOLS
+        + ALERT_TOOLS + CATEGORY_TOOLS + SNAPSHOT_TOOLS
     )
     seen: set[str] = set()
     enriched: list[dict[str, Any]] = []

@@ -1,17 +1,18 @@
-"""AsBuilt report generation tools.
+"""AsBuilt report generation from Nutanix MCP tool outputs.
 
-Generates comprehensive infrastructure documentation from live Nutanix
-Prism Element data. Returns structured Markdown with Mermaid diagrams.
-Also provides HTML export with print CSS for PDF generation.
+Collectors call the MCP server's pe_* tools through a caller-supplied
+``call_tool`` coroutine (``async (tool_name, arguments) -> dict``) and
+shape the results for the Markdown renderers. The renderers produce a
+report with tables and a Mermaid topology diagram; ``render_html``
+wraps it in a self-contained page with an interactive TOC and print CSS.
 """
 
 import html
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
-from nutanix_mcp.client import NutanixClient
-
-# ─── Available report sections ────────────────────────────────────────────────
+ToolCaller = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 
 ALL_SECTIONS = [
     "overview",
@@ -24,78 +25,6 @@ ALL_SECTIONS = [
     "alerts",
     "health",
 ]
-
-# ─── Tool Definitions ─────────────────────────────────────────────────────────
-
-ASBUILT_TOOLS: list[dict] = [
-    {
-        "name": "generate_asbuilt",
-        "description": (
-            "Generate an infrastructure AsBuilt report from a Nutanix Prism Element cluster. "
-            "Accepts a PE IP address, cluster name, or cluster UUID — cluster names and UUIDs "
-            "are auto-resolved to the PE external IP via Prism Central. "
-            "Queries live cluster data and returns a structured Markdown report with tables "
-            "and Mermaid topology diagrams. Use 'sections' to include only specific parts. "
-            "Available sections: overview, system, hosts, vms, networks, storage, protection_domains, alerts, health."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "pe_host": {
-                    "type": "string",
-                    "description": "Prism Element CVM IP, cluster external IP, cluster name, or cluster UUID",
-                },
-                "sections": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": (
-                        "Which sections to include in the report. "
-                        "Defaults to all sections if omitted. "
-                        "Options: overview, system, hosts, vms, networks, storage, "
-                        "protection_domains, alerts, health"
-                    ),
-                },
-            },
-            "required": ["pe_host"],
-        },
-    },
-    {
-        "name": "export_asbuilt_html",
-        "description": (
-            "Convert an AsBuilt Markdown report to a self-contained HTML file "
-            "with print-optimized CSS. Open in a browser and use Ctrl+P / Cmd+P "
-            "to save as PDF. Includes Mermaid diagram rendering via CDN. "
-            "Pass the markdown string from generate_asbuilt output."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {
-                "markdown": {
-                    "type": "string",
-                    "description": "The Markdown report content from generate_asbuilt",
-                },
-                "title": {
-                    "type": "string",
-                    "description": "Report title (defaults to 'Nutanix AsBuilt Report')",
-                },
-            },
-            "required": ["markdown"],
-        },
-    },
-    {
-        "name": "get_project_architecture",
-        "description": (
-            "Get the Nutanix MCP Server project architecture documentation. "
-            "Returns a Markdown document with component diagrams, API layer details, "
-            "tool inventory, design decisions, deployment topology, and file structure."
-        ),
-        "inputSchema": {
-            "type": "object",
-            "properties": {},
-        },
-    },
-]
-
 
 # ─── Nutanix API Value Mappings ────────────────────────────────────────────────
 
@@ -139,292 +68,165 @@ def _strip_k_prefix(value: str | None) -> str:
     return value
 
 
-# ─── Data Collection Helpers ──────────────────────────────────────────────────
+# ─── Collectors (consume MCP tool outputs) ────────────────────────────────────
 
 
-async def _collect_overview(client: NutanixClient, pe_host: str) -> dict[str, Any]:
-    """Collect cluster overview data."""
-    result = await client.pe_get(pe_host, "cluster")
-    raw_hyp = result.get("hypervisor_types") or []
+async def _collect_overview(call_tool: ToolCaller, pe_host: str) -> dict[str, Any]:
+    """Collect cluster overview via pe_get_cluster_info."""
+    info = await call_tool("pe_get_cluster_info", {"pe_host": pe_host})
     return {
-        "name": result.get("name") or "Unknown",
-        "uuid": result.get("cluster_uuid") or "",
-        "version": result.get("version") or "",
-        "numNodes": result.get("num_nodes") or 0,
-        "storageType": _friendly_storage_type(result.get("storage_type")),
-        "hypervisorTypes": [_friendly_hypervisor(h) for h in raw_hyp],
-        "externalIp": result.get("cluster_external_ipaddress") or "",
-        "externalDataServicesIp": result.get("cluster_external_data_services_ipaddress") or "",
-        "timezone": result.get("timezone") or "",
-        "nccVersion": result.get("ncc_version") or "",
-        "blockSerials": result.get("rackable_units") or [],
-        "clusterRedundancyFactor": (result.get("cluster_redundancy_state") or {}).get(
-            "desired_redundancy_factor", ""
-        ),
-        "operationMode": result.get("operation_mode") or "",
-        "externalSubnet": result.get("external_subnet") or "",
-        "internalSubnet": result.get("internal_subnet") or "",
-        "nameServers": result.get("name_servers") or [],
-        "ntpServers": result.get("ntp_servers") or [],
-        "faultToleranceDomainType": result.get("fault_tolerance_domain_type") or "",
+        "name": info.get("name") or "Unknown",
+        "uuid": info.get("clusterUuid") or "",
+        "version": info.get("version") or "",
+        "nccVersion": info.get("nccVersion") or "",
+        "numNodes": info.get("numNodes") or 0,
+        "storageType": _friendly_storage_type(info.get("storageType")),
+        "hypervisorTypes": [_friendly_hypervisor(h) for h in (info.get("hypervisorTypes") or [])],
+        "externalIp": info.get("clusterExternalIp") or "",
+        "externalDataServicesIp": info.get("externalDataServicesIp") or "",
+        "externalSubnet": info.get("externalSubnet") or "",
+        "internalSubnet": info.get("internalSubnet") or "",
+        "nameServers": info.get("nameServers") or [],
+        "ntpServers": info.get("ntpServers") or [],
+        "timezone": info.get("timezone") or "",
+        "operationMode": info.get("operationMode") or "",
+        "clusterRedundancyFactor": info.get("redundancyFactor") or "",
+        "faultToleranceDomainType": info.get("faultToleranceDomainType") or "",
     }
 
 
-async def _collect_hosts(client: NutanixClient, pe_host: str) -> list[dict]:
-    """Collect host inventory with hardware details."""
-    result = await client.pe_list(pe_host, "hosts")
-    entities = result.get("entities", [])
+async def _collect_hosts(call_tool: ToolCaller, pe_host: str) -> list[dict]:
+    """Collect host inventory via pe_list_hosts."""
+    result = await call_tool("pe_list_hosts", {"pe_host": pe_host})
     hosts = []
-    for h in entities:
-        host_data = {
-            "name": h.get("name") or "",
-            "uuid": h.get("uuid") or "",
-            "hypervisorAddress": h.get("hypervisor_address") or "",
-            "cvmAddress": h.get("service_vmexternal_ip") or h.get("controller_vm_backplane_ip") or "",
-            "ipmiAddress": h.get("ipmi_address") or "",
-            "cpuModel": h.get("cpu_model") or "",
-            "numCpuSockets": h.get("num_cpu_sockets") or 0,
-            "numCpuCores": h.get("num_cpu_cores") or 0,
-            "cpuCapacityGhz": round((h.get("cpu_capacity_in_hz") or 0) / 1e9, 1),
-            "memoryCapacityGb": (h.get("memory_capacity_in_bytes") or 0) // (1024**3),
-            "hypervisorType": _friendly_hypervisor(h.get("hypervisor_type")),
-            "hypervisorVersion": h.get("hypervisor_full_name") or "",
-            "serial": h.get("serial") or "",
-            "blockModel": h.get("block_model_name") or "",
-            "blockSerial": h.get("block_serial") or "",
-            "bmcVersion": h.get("bmc_version") or "",
-            "biosVersion": h.get("bios_version") or "",
-            "numVms": h.get("num_vms") or 0,
-            "oplogDiskPct": h.get("oplog_disk_pct") or 0,
-            "oplogDiskSizeGb": round((h.get("oplog_disk_size") or 0) / (1024**3), 1),
-            "monitored": h.get("monitored", True),
-            "hostType": h.get("host_type") or "",
-        }
-        hosts.append(host_data)
+    for h in result.get("hosts") or []:
+        hosts.append(
+            {
+                **h,
+                "name": h.get("name") or "",
+                "uuid": h.get("uuid") or "",
+                "hypervisorType": _friendly_hypervisor(h.get("hypervisorType")),
+                "cpuCapacityGhz": h.get("cpuCapacityGhz") or 0,
+                "memoryCapacityGb": h.get("memoryCapacityGb") or 0,
+                "numCpuSockets": h.get("numCpuSockets") or 0,
+                "numCpuCores": h.get("numCpuCores") or 0,
+                "numVms": h.get("numVms") or 0,
+            }
+        )
     return hosts
 
 
-async def _collect_system(client: NutanixClient, pe_host: str) -> dict[str, Any]:
-    """Collect system configuration (auth, SMTP, SNMP, licensing, images)."""
-    system: dict[str, Any] = {}
-
-    # Authentication
-    try:
-        auth = await client.pe_get(pe_host, "authconfig")
-        system["auth"] = {
-            "authTypes": auth.get("auth_type_list") or [],
-            "directories": [
-                {
-                    "name": d.get("name") or "",
-                    "type": d.get("directory_type") or "",
-                    "domain": d.get("domain") or "",
-                    "url": d.get("directory_url") or "",
-                }
-                for d in (auth.get("directory_list") or [])
-            ],
-        }
-    except Exception:
-        pass
-
-    # SMTP
-    try:
-        smtp = await client.pe_get(pe_host, "cluster/smtp")
-        if smtp and smtp.get("address"):
-            system["smtp"] = {
-                "address": smtp.get("address") or "",
-                "port": smtp.get("port") or "",
-                "secureMode": smtp.get("secure_mode") or "",
-                "fromEmail": smtp.get("from_email_address") or "",
-            }
-    except Exception:
-        pass
-
-    # SNMP
-    try:
-        snmp = await client.pe_get(pe_host, "snmp")
-        if snmp and snmp.get("enabled"):
-            system["snmp"] = {
-                "enabled": snmp.get("enabled", False),
-                "traps": len(snmp.get("snmp_traps") or []),
-                "users": len(snmp.get("snmp_users") or []),
-            }
-    except Exception:
-        pass
-
-    # Syslog
-    try:
-        syslog = await client.pe_get(pe_host, "cluster/syslog")
-        modules = syslog.get("syslogModules") or syslog.get("modules") or []
-        if modules:
-            system["syslog"] = {"serverCount": len(modules)}
-    except Exception:
-        pass
-
-    # Licensing
-    try:
-        license_info = await client.pe_get(pe_host, "license")
-        system["license"] = {
-            "category": license_info.get("category") or "Unknown",
-        }
-    except Exception:
-        pass
-
-    # Images
-    try:
-        images_result = await client.pe_list(pe_host, "images")
-        images = images_result.get("entities") or []
-        system["images"] = [
-            {
-                "name": img.get("name") or "",
-                "type": img.get("image_type") or "",
-                "state": img.get("image_state") or "",
-                "sizeGb": round((img.get("vm_disk_size") or 0) / (1024**3), 1),
-            }
-            for img in images
-        ]
-    except Exception:
-        pass
-
-    # NFS Whitelists
-    try:
-        nfs = await client.pe_get(pe_host, "cluster/nfs_whitelist")
-        if nfs:
-            wl = nfs if isinstance(nfs, list) else nfs.get("whitelist") or []
-            if wl:
-                system["nfsWhitelist"] = wl
-    except Exception:
-        pass
-
-    return system
-
-
-async def _collect_host_disks(client: NutanixClient, pe_host: str, hosts: list[dict]) -> dict[str, list[dict]]:
-    """Collect per-host physical disk inventory."""
+async def _collect_host_disks(
+    call_tool: ToolCaller, pe_host: str, hosts: list[dict]
+) -> dict[str, list[dict]]:
+    """Collect per-host physical disk inventory via pe_get_host_disks."""
     host_disks: dict[str, list[dict]] = {}
     for h in hosts:
         host_uuid = h.get("uuid", "")
         if not host_uuid:
             continue
         try:
-            result = await client.pe_get(pe_host, f"hosts/{host_uuid}/host_disks")
-            entities = result.get("entities") or []
+            result = await call_tool("pe_get_host_disks", {"pe_host": pe_host, "host_uuid": host_uuid})
             host_disks[host_uuid] = [
                 {
                     "location": d.get("location") or "",
                     "id": d.get("id") or "",
-                    "serial": (d.get("disk_hardware_config") or {}).get("serial_number") or "",
-                    "model": (d.get("disk_hardware_config") or {}).get("model") or "",
-                    "vendor": (d.get("disk_hardware_config") or {}).get("vendor") or "",
-                    "firmware": (d.get("disk_hardware_config") or {}).get("current_firmware_version") or "",
-                    "tier": _strip_k_prefix(d.get("storage_tier_name") or ""),
-                    "capacityTb": round((d.get("disk_size") or 0) / (1024**4), 2),
-                    "status": d.get("disk_status") or "",
-                    "online": d.get("online", True),
-                    "selfEncrypting": d.get("self_encrypting_drive", False),
+                    "serial": d.get("serialNumber") or "",
+                    "model": d.get("model") or "",
+                    "vendor": d.get("vendor") or "",
+                    "firmware": d.get("firmware") or "",
+                    "tier": _strip_k_prefix(d.get("storageTierName") or ""),
+                    "capacityTb": round((d.get("capacityBytes") or 0) / (1024**4), 2),
+                    "status": d.get("diskStatus") or "",
+                    "online": d.get("onlineStatus", True),
                 }
-                for d in entities
+                for d in result.get("disks") or []
             ]
         except Exception:
             pass
     return host_disks
 
 
-async def _collect_vms(client: NutanixClient, pe_host: str) -> list[dict]:
-    """Collect VM inventory."""
-    result = await client.pe_list(pe_host, "vms")
-    entities = result.get("entities", [])
+async def _collect_vms(call_tool: ToolCaller, pe_host: str) -> list[dict]:
+    """Collect VM inventory via pe_list_vms with disk config."""
+    result = await call_tool("pe_list_vms", {"pe_host": pe_host, "include_disk_config": True})
     return [
         {
-            "name": vm.get("name", ""),
-            "uuid": vm.get("uuid", ""),
-            "powerState": vm.get("power_state", ""),
-            "numVcpus": vm.get("num_vcpus", 0),
-            "memoryMb": vm.get("memory_mb", 0),
-            "hostUuid": vm.get("host_uuid", ""),
-            "ipAddresses": vm.get("ip_addresses", []),
-            "diskCapacityGb": sum(
-                (d.get("disk_capacity_in_bytes", 0) or 0) // (1024**3)
-                for d in vm.get("vm_disk_info", [])
-                if not d.get("is_cdrom", False)
-            ),
+            "name": vm.get("name") or "",
+            "uuid": vm.get("uuid") or "",
+            "powerState": vm.get("powerState") or "",
+            "numVcpus": vm.get("numVcpus") or 0,
+            "memoryMb": vm.get("memoryMb") or 0,
+            "hostUuid": vm.get("hostUuid") or "",
+            "ipAddresses": vm.get("ipAddresses") or [],
+            "diskCapacityGb": vm.get("diskCapacityGb", 0),
         }
-        for vm in entities
+        for vm in result.get("vms") or []
     ]
 
 
-async def _collect_networks(client: NutanixClient, pe_host: str) -> list[dict]:
-    """Collect network configuration."""
-    result = await client.pe_list(pe_host, "networks")
-    entities = result.get("entities", [])
-    return [
-        {
-            "name": n.get("name", ""),
-            "uuid": n.get("uuid", ""),
-            "vlanId": n.get("vlan_id"),
-            "networkType": "Managed" if n.get("ip_config") else "Unmanaged",
-            "subnet": _extract_subnet_info(n),
-        }
-        for n in entities
-    ]
+async def _collect_networks(call_tool: ToolCaller, pe_host: str) -> list[dict]:
+    """Collect network configuration via pe_list_networks."""
+    result = await call_tool("pe_list_networks", {"pe_host": pe_host})
+    networks = []
+    for n in result.get("networks") or []:
+        ip_config = n.get("ipConfig") or {}
+        addr = ip_config.get("networkAddress") or ""
+        prefix = ip_config.get("prefixLength") or ""
+        subnet = f"{addr}/{prefix}" if addr and prefix else ""
+        networks.append(
+            {
+                "name": n.get("name") or "",
+                "uuid": n.get("uuid") or "",
+                "vlanId": n.get("vlanId"),
+                "networkType": "Managed" if ip_config else "Unmanaged",
+                "subnet": subnet,
+            }
+        )
+    return networks
 
 
-def _extract_subnet_info(network: dict) -> str:
-    """Extract subnet CIDR from network IP config."""
-    ip_config = network.get("ip_config", {})
-    if not ip_config:
-        return ""
-    prefix = ip_config.get("prefix_length", "")
-    addr = ip_config.get("network_address", "")
-    if addr and prefix:
-        return f"{addr}/{prefix}"
-    return ip_config.get("subnet_mask", "")
-
-
-async def _collect_storage(client: NutanixClient, pe_host: str) -> dict[str, Any]:
-    """Collect storage configuration."""
-    containers_result = await client.pe_list(pe_host, "containers")
-    pools_result = await client.pe_list(pe_host, "storage_pools")
-    disks_result = await client.pe_list(pe_host, "disks")
-
-    containers = containers_result.get("entities", [])
-    pools = pools_result.get("entities", [])
-    disks = disks_result.get("entities", [])
+async def _collect_storage(call_tool: ToolCaller, pe_host: str) -> dict[str, Any]:
+    """Collect storage configuration via container/pool/disk tools."""
+    containers_result = await call_tool("pe_list_containers", {"pe_host": pe_host})
+    pools_result = await call_tool("pe_list_storage_pools", {"pe_host": pe_host})
+    disks_result = await call_tool("pe_list_disks", {"pe_host": pe_host})
 
     return {
         "containers": [
             {
-                "name": c.get("name", ""),
-                "uuid": c.get("container_uuid", ""),
-                "maxCapacityTb": round((c.get("max_capacity", 0) or 0) / (1024**4), 2),
-                "replicationFactor": c.get("replication_factor", ""),
-                "compressionEnabled": c.get("compression_enabled", False),
-                "dedupEnabled": c.get("on_disk_dedup"),
-                "erasureCoded": c.get("erasure_coded", False),
+                "name": c.get("name") or "",
+                "uuid": c.get("containerUuid") or "",
+                "maxCapacityTb": round((c.get("maxCapacityBytes") or 0) / (1024**4), 2),
+                "replicationFactor": c.get("replicationFactor") or "",
+                "compressionEnabled": c.get("compressionEnabled") or False,
+                "dedupEnabled": c.get("dedupEnabled"),
+                "erasureCoded": c.get("erasureCoded") or False,
             }
-            for c in containers
+            for c in containers_result.get("containers") or []
         ],
         "pools": [
             {
-                "name": sp.get("name", ""),
-                "uuid": sp.get("storage_pool_uuid", ""),
-                "capacityTb": round((sp.get("capacity", 0) or 0) / (1024**4), 2),
-                "numDisks": len(sp.get("disks", [])),
+                "name": sp.get("name") or "",
+                "uuid": sp.get("uuid") or "",
+                "capacityTb": round((sp.get("capacityBytes") or 0) / (1024**4), 2),
+                "numDisks": sp.get("numDisks") or 0,
             }
-            for sp in pools
+            for sp in pools_result.get("storagePools") or []
         ],
-        "diskSummary": _summarize_disks(disks),
+        "diskSummary": _summarize_disks(disks_result.get("disks") or []),
     }
 
 
 def _summarize_disks(disks: list[dict]) -> dict:
-    """Summarize disk tiers and counts."""
+    """Summarize disk tiers and counts from pe_list_disks output."""
     tiers: dict[str, dict] = {}
     for d in disks:
-        tier = _strip_k_prefix(d.get("storage_tier_name") or "Unknown")
+        tier = _strip_k_prefix(d.get("storageTierName") or "Unknown")
         if tier not in tiers:
             tiers[tier] = {"count": 0, "totalCapacityTb": 0.0}
         tiers[tier]["count"] += 1
-        tiers[tier]["totalCapacityTb"] += (d.get("disk_size", 0) or 0) / (1024**4)
+        tiers[tier]["totalCapacityTb"] += (d.get("capacityBytes") or 0) / (1024**4)
 
     for tier_data in tiers.values():
         tier_data["totalCapacityTb"] = round(tier_data["totalCapacityTb"], 2)
@@ -432,56 +234,138 @@ def _summarize_disks(disks: list[dict]) -> dict:
     return {"tiers": tiers, "totalDisks": len(disks)}
 
 
-async def _collect_protection_domains(client: NutanixClient, pe_host: str) -> dict[str, Any]:
-    """Collect protection domain configuration, remote sites, and unprotected VMs."""
-    pd_result = await client.pe_list(pe_host, "protection_domains")
-    pd_entities = pd_result.get("entities", [])
+async def _collect_system(call_tool: ToolCaller, pe_host: str) -> dict[str, Any]:
+    """Collect system configuration via the pe_get_* config tools."""
+    system: dict[str, Any] = {}
+    args = {"pe_host": pe_host}
 
-    pds = [
-        {
-            "name": pd.get("name", ""),
-            "active": pd.get("active", False),
-            "vmCount": len(pd.get("vms", [])),
-            "cronSchedules": len(pd.get("cron_schedules", [])),
-            "writtenBytes": pd.get("total_user_written_bytes", 0),
-            "replicationLinks": [
+    try:
+        auth = await call_tool("pe_get_auth_config", args)
+        system["auth"] = {
+            "authTypes": auth.get("authTypes") or [],
+            "directories": [
                 {
-                    "remoteSite": rl.get("remote_site_name", ""),
+                    "name": d.get("name") or "",
+                    "type": d.get("directoryType") or "",
+                    "domain": d.get("domain") or "",
+                    "url": d.get("directoryUrl") or "",
                 }
-                for rl in pd.get("replication_links", [])
+                for d in auth.get("directories") or []
             ],
         }
-        for pd in pd_entities
-    ]
-
-    # Remote sites
-    remote_sites: list[dict] = []
-    try:
-        rs_result = await client.pe_list(pe_host, "remote_sites")
-        for rs in rs_result.get("entities", []):
-            remote_sites.append({
-                "name": rs.get("name") or "",
-                "remoteAddresses": rs.get("remote_ip_ports") or {},
-                "capabilities": rs.get("capabilities") or [],
-                "metroReady": rs.get("metro_ready", False),
-                "compressOnWire": rs.get("compress_on_wire", False),
-                "bandwidthThrottling": rs.get("bandwidth_policy_enabled", False),
-            })
     except Exception:
         pass
 
-    # Unprotected VMs
+    try:
+        smtp = await call_tool("pe_get_smtp_config", args)
+        if smtp and smtp.get("address"):
+            system["smtp"] = {
+                "address": smtp.get("address") or "",
+                "port": smtp.get("port") or "",
+                "secureMode": smtp.get("secureMode") or "",
+                "fromEmail": smtp.get("fromEmailAddress") or "",
+            }
+    except Exception:
+        pass
+
+    try:
+        snmp = await call_tool("pe_get_snmp_config", args)
+        if snmp and snmp.get("enabled"):
+            system["snmp"] = {
+                "enabled": snmp.get("enabled", False),
+                "traps": len(snmp.get("traps") or []),
+                "users": len(snmp.get("users") or []),
+            }
+    except Exception:
+        pass
+
+    try:
+        syslog = await call_tool("pe_get_syslog_config", args)
+        if syslog.get("count"):
+            system["syslog"] = {"serverCount": syslog["count"]}
+    except Exception:
+        pass
+
+    try:
+        license_info = await call_tool("pe_get_licensing_info", args)
+        system["license"] = {"category": license_info.get("category") or "Unknown"}
+    except Exception:
+        pass
+
+    try:
+        images_result = await call_tool("pe_list_images", args)
+        system["images"] = [
+            {
+                "name": img.get("name") or "",
+                "type": img.get("imageType") or "",
+                "state": img.get("imageState") or "",
+                "sizeGb": round((img.get("sizeMb") or 0) / 1024, 1),
+            }
+            for img in images_result.get("images") or []
+        ]
+    except Exception:
+        pass
+
+    try:
+        nfs = await call_tool("pe_get_nfs_whitelists", args)
+        wl = nfs.get("whitelists") or []
+        if wl:
+            system["nfsWhitelist"] = wl
+    except Exception:
+        pass
+
+    return system
+
+
+async def _collect_protection_domains(call_tool: ToolCaller, pe_host: str) -> dict[str, Any]:
+    """Collect protection domains, remote sites, and unprotected VMs."""
+    args = {"pe_host": pe_host}
+    pd_result = await call_tool("pe_list_protection_domains", args)
+
+    pds = [
+        {
+            "name": pd.get("name") or "",
+            "active": pd.get("active") or False,
+            "vmCount": pd.get("vmCount") or 0,
+            "cronSchedules": len(pd.get("cronSchedules") or []),
+            "replicationLinks": [
+                {"remoteSite": rl.get("remote_site_name") or rl.get("remoteSite") or ""}
+                for rl in pd.get("replicationLinks") or []
+            ],
+        }
+        for pd in pd_result.get("protectionDomains") or []
+    ]
+
+    remote_sites: list[dict] = []
+    try:
+        rs_result = await call_tool("pe_list_remote_sites", args)
+        for rs in rs_result.get("remoteSites") or []:
+            remote_sites.append(
+                {
+                    "name": rs.get("name") or "",
+                    "remoteAddresses": rs.get("remoteIpPorts") or {},
+                    "capabilities": rs.get("capabilities") or [],
+                    "metroReady": rs.get("metroReady") or False,
+                    "compressOnWire": rs.get("compressOnWire") or False,
+                    "bandwidthThrottling": rs.get("bandwidthPolicyEnabled") or False,
+                }
+            )
+    except Exception:
+        pass
+
     unprotected_vms: list[dict] = []
     try:
-        up_result = await client.pe_list(pe_host, "vms", filter_criteria="protection_type==kUnprotected")
-        for vm in up_result.get("entities", []):
-            if vm.get("power_state", "").lower() == "on":
-                unprotected_vms.append({
-                    "name": vm.get("name") or "",
-                    "powerState": vm.get("power_state") or "",
-                    "numVcpus": vm.get("num_vcpus") or 0,
-                    "memoryMb": vm.get("memory_mb") or 0,
-                })
+        up_result = await call_tool("pe_list_unprotected_vms", args)
+        for vm in up_result.get("unprotectedVms") or []:
+            if (vm.get("powerState") or "").lower() == "on":
+                unprotected_vms.append(
+                    {
+                        "name": vm.get("name") or "",
+                        "powerState": vm.get("powerState") or "",
+                        "numVcpus": vm.get("numVcpus") or 0,
+                        "memoryMb": vm.get("memoryMb") or 0,
+                    }
+                )
     except Exception:
         pass
 
@@ -492,58 +376,103 @@ async def _collect_protection_domains(client: NutanixClient, pe_host: str) -> di
     }
 
 
-async def _collect_alerts(client: NutanixClient, pe_host: str) -> dict[str, Any]:
-    """Collect active alert summary."""
-    result = await client.pe_get(pe_host, "alerts", params={"count": "100", "resolved": "false"})
-    entities = result.get("entities", [])
+async def _collect_alerts(call_tool: ToolCaller, pe_host: str) -> dict[str, Any]:
+    """Collect active alert summary via pe_list_alerts."""
+    result = await call_tool("pe_list_alerts", {"pe_host": pe_host, "count": 100})
+    alerts = result.get("alerts") or []
 
     severity_counts: dict[str, int] = {}
-    for a in entities:
+    for a in alerts:
         sev = _strip_k_prefix(a.get("severity") or "UNKNOWN")
         severity_counts[sev] = severity_counts.get(sev, 0) + 1
 
     return {
-        "totalActive": len(entities),
+        "totalActive": len(alerts),
         "bySeverity": severity_counts,
         "recent": [
             {
-                "title": a.get("alert_title") or "",
+                "title": a.get("alertTitle") or "",
                 "severity": _strip_k_prefix(a.get("severity") or ""),
                 "message": (a.get("message") or "")[:120],
             }
-            for a in entities[:10]
+            for a in alerts[:10]
         ],
     }
 
 
-async def _collect_health(client: NutanixClient, pe_host: str) -> dict[str, Any]:
-    """Collect health check results."""
-    result = await client.pe_get(pe_host, "health_checks")
-    entities = result.get("entities", [])
+async def _collect_health(call_tool: ToolCaller, pe_host: str) -> dict[str, Any]:
+    """Collect health check results via pe_list_health_checks."""
+    result = await call_tool("pe_list_health_checks", {"pe_host": pe_host})
+    checks = result.get("healthChecks") or []
 
     status_counts: dict[str, int] = {}
     failed_checks: list[dict] = []
-    for check in entities:
-        status = check.get("last_execution_status", "UNKNOWN")
+    for check in checks:
+        status = check.get("lastExecutionStatus") or "UNKNOWN"
         status_counts[status] = status_counts.get(status, 0) + 1
         if status in ("FAIL", "WARN", "ERROR"):
-            failed_checks.append({
-                "name": check.get("name", ""),
-                "description": check.get("description", ""),
-                "status": status,
-            })
+            failed_checks.append(
+                {
+                    "name": check.get("name") or "",
+                    "description": check.get("description") or "",
+                    "status": status,
+                }
+            )
 
     return {
-        "totalChecks": len(entities),
+        "totalChecks": len(checks),
         "byStatus": status_counts,
         "failedChecks": failed_checks[:20],
     }
 
 
+async def collect_report_data(
+    call_tool: ToolCaller,
+    pe_host: str,
+    sections: list[str],
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Collect all requested report sections. Returns (data, per-section errors)."""
+    data: dict[str, Any] = {}
+    errors: dict[str, str] = {}
+
+    # Overview is needed for the topology diagram even if not requested
+    if "overview" in sections or "hosts" in sections:
+        try:
+            data["overview"] = await _collect_overview(call_tool, pe_host)
+        except Exception as e:
+            errors["overview"] = str(e)
+            data["overview"] = {"name": pe_host, "uuid": "", "version": "N/A", "numNodes": 0}
+
+    simple_collectors: dict[str, Any] = {
+        "hosts": _collect_hosts,
+        "vms": _collect_vms,
+        "networks": _collect_networks,
+        "storage": _collect_storage,
+        "system": _collect_system,
+        "protection_domains": _collect_protection_domains,
+        "alerts": _collect_alerts,
+        "health": _collect_health,
+    }
+    for section_name, collector_fn in simple_collectors.items():
+        if section_name in sections:
+            try:
+                data[section_name] = await collector_fn(call_tool, pe_host)
+            except Exception as e:
+                errors[section_name] = str(e)
+
+    if "hosts" in sections and "hosts" in data:
+        try:
+            data["host_disks"] = await _collect_host_disks(call_tool, pe_host, data["hosts"])
+        except Exception as e:
+            errors["host_disks"] = str(e)
+
+    return data, errors
+
+
 # ─── Markdown Report Generation ──────────────────────────────────────────────
 
 
-def _generate_markdown(
+def render_markdown(
     cluster_name: str,
     pe_host: str,
     data: dict[str, Any],
@@ -613,7 +542,7 @@ def _section_overview(overview: dict) -> list[str]:
         f"| **AOS Version** | {overview['version']} |",
         f"| **NCC Version** | {overview.get('nccVersion') or 'N/A'} |",
         f"| **Node Count** | {overview['numNodes']} |",
-        f"| **Storage Type** | {overview['storageType']} |",
+        f"| **Storage Type** | {overview.get('storageType') or 'N/A'} |",
         f"| **Hypervisor** | {', '.join(overview.get('hypervisorTypes') or [])} |",
         f"| **Redundancy Factor** | {rf_display} |",
         f"| **Fault Tolerance Domain** | {ft_domain} |",
@@ -638,7 +567,6 @@ def _section_system(system: dict) -> list[str]:
     """Generate the system configuration section."""
     lines = ["## System Configuration", ""]
 
-    # Licensing
     lic = system.get("license")
     if lic:
         lines.extend([
@@ -648,7 +576,6 @@ def _section_system(system: dict) -> list[str]:
             "",
         ])
 
-    # Authentication
     auth = system.get("auth")
     if auth:
         auth_types = ", ".join(auth.get("authTypes") or []) or "N/A"
@@ -665,7 +592,6 @@ def _section_system(system: dict) -> list[str]:
                 )
             lines.append("")
 
-    # SMTP
     smtp = system.get("smtp")
     if smtp:
         lines.extend([
@@ -677,7 +603,6 @@ def _section_system(system: dict) -> list[str]:
             "",
         ])
 
-    # SNMP
     snmp = system.get("snmp")
     if snmp:
         lines.extend([
@@ -689,7 +614,6 @@ def _section_system(system: dict) -> list[str]:
             "",
         ])
 
-    # Syslog
     syslog = system.get("syslog")
     if syslog:
         lines.extend([
@@ -699,7 +623,6 @@ def _section_system(system: dict) -> list[str]:
             "",
         ])
 
-    # NFS Whitelists
     nfs_wl = system.get("nfsWhitelist")
     if nfs_wl:
         lines.extend([
@@ -709,7 +632,6 @@ def _section_system(system: dict) -> list[str]:
             "",
         ])
 
-    # Images
     images = system.get("images")
     if images:
         lines.extend([
@@ -738,7 +660,6 @@ def _section_hosts(hosts: list[dict], host_disks: dict[str, list[dict]] | None =
         "",
     ]
 
-    # Summary table
     total_cores = sum(h.get("numCpuCores", 0) for h in hosts)
     total_cpu_ghz = sum(h.get("cpuCapacityGhz", 0) for h in hosts)
     total_ram = sum(h.get("memoryCapacityGb", 0) for h in hosts)
@@ -752,7 +673,6 @@ def _section_hosts(hosts: list[dict], host_disks: dict[str, list[dict]] | None =
         "",
     ])
 
-    # Per-host detail cards
     for h in hosts:
         lines.extend([
             f"### {h['name']}",
@@ -785,7 +705,6 @@ def _section_hosts(hosts: list[dict], host_disks: dict[str, list[dict]] | None =
             "",
         ])
 
-        # Per-host disk inventory
         uuid = h.get("uuid", "")
         disks = (host_disks or {}).get(uuid, [])
         if disks:
@@ -810,7 +729,7 @@ def _section_hosts(hosts: list[dict], host_disks: dict[str, list[dict]] | None =
 
 def _section_vms(vms: list[dict]) -> list[str]:
     """Generate the VM inventory section."""
-    powered_on = [v for v in vms if v.get("powerState") == "ON" or v.get("powerState") == "on"]
+    powered_on = [v for v in vms if (v.get("powerState") or "").lower() == "on"]
     powered_off = [v for v in vms if v not in powered_on]
 
     lines = [
@@ -830,7 +749,6 @@ def _section_vms(vms: list[dict]) -> list[str]:
         )
     lines.append("")
 
-    # VM resource summary
     total_vcpus = sum(v.get("numVcpus", 0) for v in powered_on)
     total_ram_mb = sum(v.get("memoryMb", 0) for v in powered_on)
     lines.extend([
@@ -855,7 +773,7 @@ def _section_networks(networks: list[dict]) -> list[str]:
     ]
     for n in networks:
         lines.append(
-            f"| {n['name']} | {n.get('vlanId', '—')} | {n['networkType']} | {n.get('subnet', '—')} |"
+            f"| {n['name']} | {n.get('vlanId', '—')} | {n['networkType']} | {n.get('subnet', '—') or '—'} |"
         )
     lines.append("")
     return lines
@@ -868,7 +786,6 @@ def _section_storage(storage: dict) -> list[str]:
         "",
     ]
 
-    # Storage Pools
     pools = storage.get("pools", [])
     if pools:
         lines.extend([
@@ -881,7 +798,6 @@ def _section_storage(storage: dict) -> list[str]:
             lines.append(f"| {p['name']} | {p['capacityTb']} | {p['numDisks']} |")
         lines.append("")
 
-    # Storage Containers
     containers = storage.get("containers", [])
     if containers:
         lines.extend([
@@ -899,7 +815,6 @@ def _section_storage(storage: dict) -> list[str]:
             )
         lines.append("")
 
-    # Disk Summary
     disk_summary = storage.get("diskSummary", {})
     tiers = disk_summary.get("tiers", {})
     if tiers:
@@ -920,7 +835,6 @@ def _section_storage(storage: dict) -> list[str]:
 
 def _section_protection_domains(pd_data: dict | list) -> list[str]:
     """Generate the protection domains section."""
-    # Support both old list format and new dict format
     if isinstance(pd_data, list):
         pds = pd_data
         remote_sites: list[dict] = []
@@ -946,7 +860,6 @@ def _section_protection_domains(pd_data: dict | list) -> list[str]:
         )
     lines.append("")
 
-    # Remote sites
     if remote_sites:
         lines.extend([
             "### Remote Sites",
@@ -962,7 +875,6 @@ def _section_protection_domains(pd_data: dict | list) -> list[str]:
             )
         lines.append("")
 
-    # Unprotected VMs
     if unprotected_vms:
         lines.extend([
             "### Unprotected VMs (powered on)",
@@ -1084,7 +996,6 @@ def _section_topology_diagram(overview: dict, hosts: list[dict]) -> list[str]:
         )
         lines.append(f"    CLUSTER --- {host_id}")
 
-    # Style definitions
     lines.extend([
         "",
         "    classDef pcStyle fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#1e1b4b",
@@ -1254,7 +1165,7 @@ HTML_TEMPLATE = """\
 <nav id="toc"><h3>Contents</h3><ul id="toc-list"></ul></nav>
 {body}
 <div class="footer">
-  Generated by Nutanix MCP Server &mdash; {timestamp}
+  Generated by the Nutanix MCP AsBuilt tool &mdash; {timestamp}
 </div>
 <script>
 (function() {{
@@ -1297,6 +1208,17 @@ HTML_TEMPLATE = """\
 </script>
 </body>
 </html>"""
+
+
+def render_html(markdown: str, title: str = "Nutanix AsBuilt Report") -> str:
+    """Convert a Markdown report to a self-contained HTML page."""
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    body_html = _markdown_to_html_body(markdown)
+    return HTML_TEMPLATE.format(
+        title=html.escape(title),
+        body=body_html,
+        timestamp=now,
+    )
 
 
 def _markdown_to_html_body(markdown: str) -> str:
@@ -1449,199 +1371,3 @@ def _inline_format(text: str) -> str:
     # Bold
     text = _re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
     return text
-
-
-# ─── Tool Handlers ────────────────────────────────────────────────────────────
-
-
-async def _resolve_pe_host(client: NutanixClient, pe_host: str) -> str:
-    """Resolve a cluster name or UUID to a PE external IP address.
-
-    If pe_host looks like an IP address, returns it as-is.
-    Otherwise, queries Prism Central to find the cluster's external IP.
-    """
-    import re as _re
-
-    # Already an IP address — use directly
-    if _re.match(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$", pe_host):
-        return pe_host
-
-    # Looks like a UUID — query by UUID
-    if _re.match(r"^[0-9a-f]{8}-", pe_host):
-        try:
-            sdk = client.sdk
-            response = await sdk.call(sdk.cluster_api.get_cluster_by_id, pe_host)
-            cluster = response.data
-            if cluster and cluster.network and cluster.network.external_address:
-                addr = cluster.network.external_address
-                if hasattr(addr, "ipv4") and addr.ipv4:
-                    return addr.ipv4.value
-        except Exception:
-            pass
-        return pe_host
-
-    # Treat as a cluster name — search via list
-    try:
-        sdk = client.sdk
-        clusters = await sdk.list_all(
-            sdk.cluster_api.list_clusters,
-            _filter=f"name eq '{pe_host}'",
-        )
-        if not clusters:
-            # Try case-insensitive substring match
-            all_clusters = await sdk.list_all(sdk.cluster_api.list_clusters)
-            clusters = [c for c in all_clusters if c.name and pe_host.lower() in c.name.lower()]
-
-        for c in clusters:
-            if c.network and c.network.external_address:
-                addr = c.network.external_address
-                if hasattr(addr, "ipv4") and addr.ipv4 and addr.ipv4.value:
-                    return addr.ipv4.value
-    except Exception:
-        pass
-
-    # Fallback — return as-is and let the caller handle DNS resolution
-    return pe_host
-
-
-async def handle_generate_asbuilt(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Generate a full AsBuilt report from a Prism Element cluster."""
-    raw_pe_host = arguments["pe_host"]
-    pe_host = await _resolve_pe_host(client, raw_pe_host)
-    requested = arguments.get("sections") or ALL_SECTIONS
-
-    # Validate sections
-    invalid = [s for s in requested if s not in ALL_SECTIONS]
-    if invalid:
-        return {
-            "error": f"Invalid sections: {invalid}",
-            "validSections": ALL_SECTIONS,
-        }
-
-    sections = [s for s in ALL_SECTIONS if s in requested]
-
-    # Collect data for each requested section
-    data: dict[str, Any] = {}
-    errors: dict[str, str] = {}
-
-    # Overview is needed for topology diagram even if not explicitly requested
-    collect_overview = "overview" in sections or "hosts" in sections
-    if collect_overview:
-        try:
-            data["overview"] = await _collect_overview(client, pe_host)
-        except Exception as e:
-            errors["overview"] = str(e)
-            data["overview"] = {"name": pe_host, "uuid": "", "version": "N/A", "numNodes": 0}
-
-    collectors = {
-        "hosts": _collect_hosts,
-        "vms": _collect_vms,
-        "networks": _collect_networks,
-        "protection_domains": _collect_protection_domains,
-    }
-
-    for section_name, collector_fn in collectors.items():
-        if section_name in sections:
-            try:
-                data[section_name] = await collector_fn(client, pe_host)
-            except Exception as e:
-                errors[section_name] = str(e)
-
-    # System config
-    if "system" in sections:
-        try:
-            data["system"] = await _collect_system(client, pe_host)
-        except Exception as e:
-            errors["system"] = str(e)
-
-    # Host disk details (after hosts are collected)
-    if "hosts" in sections and "hosts" in data:
-        try:
-            data["host_disks"] = await _collect_host_disks(client, pe_host, data["hosts"])
-        except Exception as e:
-            errors["host_disks"] = str(e)
-
-    if "storage" in sections:
-        try:
-            data["storage"] = await _collect_storage(client, pe_host)
-        except Exception as e:
-            errors["storage"] = str(e)
-
-    if "alerts" in sections:
-        try:
-            data["alerts"] = await _collect_alerts(client, pe_host)
-        except Exception as e:
-            errors["alerts"] = str(e)
-
-    if "health" in sections:
-        try:
-            data["health"] = await _collect_health(client, pe_host)
-        except Exception as e:
-            errors["health"] = str(e)
-
-    cluster_name = data.get("overview", {}).get("name", pe_host)
-    markdown = _generate_markdown(cluster_name, pe_host, data, sections)
-
-    result: dict[str, Any] = {
-        "clusterName": cluster_name,
-        "peHost": pe_host,
-        "sectionsIncluded": sections,
-        "markdown": markdown,
-    }
-
-    if pe_host != raw_pe_host:
-        result["resolvedFrom"] = raw_pe_host
-
-    if errors:
-        result["sectionErrors"] = errors
-
-    # Include raw data for Excalidraw diagram generation by the AI
-    result["topologyData"] = {
-        "cluster": data.get("overview", {}),
-        "hosts": data.get("hosts", []),
-        "vmCount": len(data.get("vms", [])),
-        "networkCount": len(data.get("networks", [])),
-    }
-
-    return result
-
-
-async def handle_export_asbuilt_html(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Convert Markdown report to self-contained HTML with print CSS."""
-    markdown = arguments["markdown"]
-    title = arguments.get("title", "Nutanix AsBuilt Report")
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-
-    body_html = _markdown_to_html_body(markdown)
-
-    full_html = HTML_TEMPLATE.format(
-        title=html.escape(title),
-        body=body_html,
-        timestamp=now,
-    )
-
-    return {
-        "html": full_html,
-        "title": title,
-        "note": (
-            "Open this HTML in a browser and use Ctrl+P (Cmd+P on Mac) to save as PDF. "
-            "The print CSS is optimized for A4 landscape with proper page breaks."
-        ),
-    }
-
-
-async def handle_get_project_architecture(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
-    """Return the project architecture documentation."""
-    from nutanix_mcp.resources import _project_architecture_doc
-
-    return {
-        "markdown": _project_architecture_doc(),
-        "note": "This is the Nutanix MCP Server project architecture. Use export_asbuilt_html to convert to PDF.",
-    }
-
-
-ASBUILT_HANDLERS: dict[str, Any] = {
-    "generate_asbuilt": handle_generate_asbuilt,
-    "export_asbuilt_html": handle_export_asbuilt_html,
-    "get_project_architecture": handle_get_project_architecture,
-}

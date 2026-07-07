@@ -32,7 +32,6 @@ from nutanix_mcp.resources import (
 )
 from nutanix_mcp.tools import get_all_tools
 from nutanix_mcp.tools.alert import ALERT_HANDLERS
-from nutanix_mcp.tools.asbuilt import ASBUILT_HANDLERS
 from nutanix_mcp.tools.category import CATEGORY_HANDLERS
 from nutanix_mcp.tools.cluster import CLUSTER_HANDLERS
 from nutanix_mcp.tools.networking import NETWORKING_HANDLERS
@@ -53,7 +52,6 @@ ALL_HANDLERS: dict[str, Any] = {
     **ALERT_HANDLERS,
     **CATEGORY_HANDLERS,
     **SNAPSHOT_HANDLERS,
-    **ASBUILT_HANDLERS,
 }
 
 SERVER_INSTRUCTIONS = """\
@@ -61,14 +59,17 @@ This server manages Nutanix infrastructure through two API surfaces:
 
 - Prism Central tools (list_vms, get_cluster, list_alerts, ...) operate
   fleet-wide through the central management plane.
-- Prism Element tools (pe_*) query a single cluster directly and take a
-  `pe_host` argument. Discover valid hosts with list_clusters, or pass a
-  cluster name/UUID to generate_asbuilt which resolves it automatically.
+- Prism Element tools (pe_*) query a single cluster directly. Their
+  `pe_host` argument accepts an IP, hostname, cluster name, or cluster
+  UUID — names and UUIDs are resolved via Prism Central automatically.
 
 Mutating operations (create/update/delete/power/clone) return a task UUID
-immediately; poll get_task to confirm completion before reporting success.
-delete_vm additionally requires confirm=true. Before risky changes,
-snapshot_vm provides a recovery point as a safety net.
+immediately; call wait_task (or poll get_task) to confirm completion before
+reporting success. delete_vm additionally requires confirm=true. Before
+risky changes, snapshot_vm provides a recovery point as a safety net.
+
+For As-Built documentation, use the as_built_report prompt to compose a
+report from the granular tools.
 """
 
 

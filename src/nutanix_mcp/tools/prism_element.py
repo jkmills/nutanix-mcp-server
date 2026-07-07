@@ -22,7 +22,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -39,11 +42,19 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
                 "count": {
                     "type": "integer",
                     "description": "Maximum number of VMs to return",
+                },
+                "include_disk_config": {
+                    "type": "boolean",
+                    "description": "Include per-VM disk configuration and total disk capacity (slower)",
+                    "default": False,
                 },
             },
             "required": ["pe_host"],
@@ -59,7 +70,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -76,7 +90,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -92,7 +109,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -109,7 +129,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -125,7 +148,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
                 "resolved": {
                     "type": "boolean",
@@ -152,7 +178,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -166,7 +195,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
                 "protection_domain": {
                     "type": "string",
@@ -188,7 +220,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -205,7 +240,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -222,7 +260,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -239,7 +280,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -256,7 +300,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -273,7 +320,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -290,7 +340,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -308,7 +361,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
                 "name": {
                     "type": "string",
@@ -329,7 +385,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -346,7 +405,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
                 "protection_domain": {
                     "type": "string",
@@ -367,7 +429,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -385,7 +450,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
                 "host_uuid": {
                     "type": "string",
@@ -406,7 +474,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
                 "host_uuid": {
                     "type": "string",
@@ -427,7 +498,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -445,7 +519,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -462,7 +539,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
                 "uuid": {
                     "type": "string",
@@ -484,7 +564,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -501,7 +584,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -519,7 +605,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -536,7 +625,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -553,7 +645,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -570,7 +665,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -587,7 +685,10 @@ PE_TOOLS: list[dict] = [
             "properties": {
                 "pe_host": {
                     "type": "string",
-                    "description": "Prism Element CVM IP address or hostname",
+                    "description": (
+                        "Prism Element target: CVM/cluster IP, hostname, cluster name, "
+                        "or cluster UUID (names and UUIDs are resolved via Prism Central)"
+                    ),
                 },
             },
             "required": ["pe_host"],
@@ -604,14 +705,25 @@ async def handle_pe_get_cluster_info(client: NutanixClient, arguments: dict[str,
     pe_host = arguments["pe_host"]
     result = await client.pe_get(pe_host, "cluster")
 
+    redundancy = result.get("cluster_redundancy_state") or {}
     return {
         "name": result.get("name"),
         "clusterUuid": result.get("cluster_uuid"),
         "version": result.get("version"),
+        "nccVersion": result.get("ncc_version"),
         "numNodes": result.get("num_nodes"),
         "storageType": result.get("storage_type"),
         "hypervisorTypes": result.get("hypervisor_types"),
         "clusterExternalIp": result.get("cluster_external_ipaddress"),
+        "externalDataServicesIp": result.get("cluster_external_data_services_ipaddress"),
+        "externalSubnet": result.get("external_subnet"),
+        "internalSubnet": result.get("internal_subnet"),
+        "nameServers": result.get("name_servers") or [],
+        "ntpServers": result.get("ntp_servers") or [],
+        "timezone": result.get("timezone"),
+        "operationMode": result.get("operation_mode"),
+        "redundancyFactor": redundancy.get("desired_redundancy_factor"),
+        "faultToleranceDomainType": result.get("fault_tolerance_domain_type"),
     }
 
 
@@ -619,24 +731,38 @@ async def handle_pe_list_vms(client: NutanixClient, arguments: dict[str, Any]) -
     """List VMs from Prism Element v2 API."""
     pe_host = arguments["pe_host"]
     count = arguments.get("count")
+    include_disk_config = arguments.get("include_disk_config", False)
 
-    result = await client.pe_list(pe_host, "vms", count=count)
+    params: dict[str, str] = {}
+    if count is not None:
+        params["count"] = str(count)
+    if include_disk_config:
+        params["include_vm_disk_config"] = "true"
+
+    result = await client.pe_get(pe_host, "vms", params=params)
     entities = result.get("entities", [])
+
+    def _vm_entry(vm: dict[str, Any]) -> dict[str, Any]:
+        entry = {
+            "name": vm.get("name"),
+            "uuid": vm.get("uuid"),
+            "powerState": vm.get("power_state"),
+            "numVcpus": vm.get("num_vcpus"),
+            "memoryMb": vm.get("memory_mb"),
+            "hostUuid": vm.get("host_uuid"),
+            "ipAddresses": vm.get("ip_addresses", []),
+        }
+        if include_disk_config:
+            entry["diskCapacityGb"] = sum(
+                (d.get("disk_capacity_in_bytes") or 0) // (1024**3)
+                for d in vm.get("vm_disk_info", [])
+                if not d.get("is_cdrom", False)
+            )
+        return entry
 
     return {
         "count": len(entities),
-        "vms": [
-            {
-                "name": vm.get("name"),
-                "uuid": vm.get("uuid"),
-                "powerState": vm.get("power_state"),
-                "numVcpus": vm.get("num_vcpus"),
-                "memoryMb": vm.get("memory_mb"),
-                "hostUuid": vm.get("host_uuid"),
-                "ipAddresses": vm.get("ip_addresses", []),
-            }
-            for vm in entities
-        ],
+        "vms": [_vm_entry(vm) for vm in entities],
     }
 
 
@@ -653,12 +779,22 @@ async def handle_pe_list_hosts(client: NutanixClient, arguments: dict[str, Any])
                 "name": h.get("name"),
                 "uuid": h.get("uuid"),
                 "hypervisorAddress": h.get("hypervisor_address"),
-                "cvmAddress": h.get("controller_vm_backplane_ip"),
+                "cvmAddress": h.get("service_vmexternal_ip") or h.get("controller_vm_backplane_ip"),
+                "ipmiAddress": h.get("ipmi_address"),
                 "cpuModel": h.get("cpu_model"),
                 "numCpuSockets": h.get("num_cpu_sockets"),
                 "numCpuCores": h.get("num_cpu_cores"),
-                "memoryCapacityGb": (h.get("memory_capacity_in_bytes", 0)) // (1024**3),
+                "cpuCapacityGhz": round((h.get("cpu_capacity_in_hz") or 0) / 1e9, 1),
+                "memoryCapacityGb": (h.get("memory_capacity_in_bytes") or 0) // (1024**3),
                 "hypervisorType": h.get("hypervisor_type"),
+                "hypervisorVersion": h.get("hypervisor_full_name"),
+                "serial": h.get("serial"),
+                "blockModel": h.get("block_model_name"),
+                "blockSerial": h.get("block_serial"),
+                "bmcVersion": h.get("bmc_version"),
+                "biosVersion": h.get("bios_version"),
+                "numVms": h.get("num_vms"),
+                "state": h.get("state"),
             }
             for h in entities
         ],
@@ -681,6 +817,7 @@ async def handle_pe_list_containers(client: NutanixClient, arguments: dict[str, 
                 "maxCapacityBytes": c.get("max_capacity"),
                 "replicationFactor": c.get("replication_factor"),
                 "compressionEnabled": c.get("compression_enabled"),
+                "dedupEnabled": c.get("on_disk_dedup"),
                 "erasureCoded": c.get("erasure_coded"),
             }
             for c in entities
@@ -815,9 +952,11 @@ async def handle_pe_get_auth_config(client: NutanixClient, arguments: dict[str, 
     pe_host = arguments["pe_host"]
     result = await client.pe_get(pe_host, "authconfig")
 
-    directory_list = result.get("directoryList", [])
+    # The authconfig endpoint returns camelCase on some AOS builds and
+    # snake_case on others; accept both.
+    directory_list = result.get("directoryList") or result.get("directory_list") or []
     return {
-        "authTypes": result.get("authTypeList", []),
+        "authTypes": result.get("authTypeList") or result.get("auth_type_list") or [],
         "directories": [
             {
                 "name": d.get("name"),
@@ -853,6 +992,10 @@ async def handle_pe_get_snmp_config(client: NutanixClient, arguments: dict[str, 
     pe_host = arguments["pe_host"]
     result = await client.pe_get(pe_host, "snmp")
 
+    # Field names vary across AOS builds (trap_list vs snmp_trap_list, ...)
+    trap_list = result.get("trap_list") or result.get("snmp_trap_list") or []
+    user_list = result.get("user_list") or result.get("snmp_user_list") or []
+    transport_list = result.get("transport_list") or result.get("snmp_transport_list") or []
     return {
         "enabled": result.get("enabled"),
         "traps": [
@@ -863,7 +1006,7 @@ async def handle_pe_get_snmp_config(client: NutanixClient, arguments: dict[str, 
                 "version": t.get("version"),
                 "inform": t.get("inform"),
             }
-            for t in result.get("trap_list", [])
+            for t in trap_list
         ],
         "users": [
             {
@@ -871,14 +1014,14 @@ async def handle_pe_get_snmp_config(client: NutanixClient, arguments: dict[str, 
                 "authType": u.get("auth_type"),
                 "privType": u.get("priv_type"),
             }
-            for u in result.get("user_list", [])
+            for u in user_list
         ],
         "transports": [
             {
                 "port": tr.get("port"),
                 "protocol": tr.get("protocol"),
             }
-            for tr in result.get("transport_list", [])
+            for tr in transport_list
         ],
     }
 
@@ -987,7 +1130,9 @@ async def handle_pe_list_remote_sites(client: NutanixClient, arguments: dict[str
                 "uuid": rs.get("uuid"),
                 "remoteIpPorts": rs.get("remote_ip_ports", {}),
                 "capabilities": rs.get("capabilities", []),
+                "metroReady": rs.get("metro_ready"),
                 "compressionEnabled": rs.get("compression_enabled"),
+                "compressOnWire": rs.get("compress_on_wire"),
                 "bandwidthPolicyEnabled": rs.get("bandwidth_policy_enabled"),
                 "maxBandwidthMbps": rs.get("max_bandwidth_kbps", 0) // 1024 if rs.get("max_bandwidth_kbps") else None,
                 "proxyEnabled": rs.get("proxy_enabled"),
@@ -1040,6 +1185,8 @@ async def handle_pe_list_unprotected_vms(client: NutanixClient, arguments: dict[
                 "name": vm.get("vm_name") or vm.get("name"),
                 "uuid": vm.get("vm_id") or vm.get("uuid"),
                 "powerState": vm.get("power_state"),
+                "numVcpus": vm.get("num_vcpus"),
+                "memoryMb": vm.get("memory_mb"),
                 "hostUuid": vm.get("host_uuid"),
             }
             for vm in entities
