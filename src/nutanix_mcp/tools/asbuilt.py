@@ -6,7 +6,6 @@ Also provides HTML export with print CSS for PDF generation.
 """
 
 import html
-import json
 from datetime import datetime, timezone
 from typing import Any
 
@@ -1061,7 +1060,7 @@ def _section_topology_diagram(overview: dict, hosts: list[dict]) -> list[str]:
         "",
         "```mermaid",
         "graph TD",
-        f'    PC(["☁️ Prism Central"]):::pcStyle',
+        '    PC(["☁️ Prism Central"]):::pcStyle',
         f'    CLUSTER{{"🏢 {cluster_name}<br/>'
         f"AOS {version} | {hyp}<br/>"
         f'{storage_type} | {num_nodes} Nodes"}}:::clusterStyle',
@@ -1328,7 +1327,7 @@ def _markdown_to_html_body(markdown: str) -> str:
             while i < len(lines) and lines[i].strip() != "```":
                 mermaid_lines.append(lines[i])
                 i += 1
-            html_parts.append(f'<div class="mermaid">\n' + "\n".join(mermaid_lines) + "\n</div>")
+            html_parts.append('<div class="mermaid">\n' + "\n".join(mermaid_lines) + "\n</div>")
             i += 1
             continue
 

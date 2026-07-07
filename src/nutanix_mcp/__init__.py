@@ -1,5 +1,7 @@
 """Nutanix MCP Server - MCP server for Nutanix Prism Central & Element APIs."""
 
-from nutanix_mcp.server import main
+__version__ = "0.4.0"
 
-__all__ = ["main"]
+from nutanix_mcp.server import main  # noqa: E402
+
+__all__ = ["main", "__version__"]

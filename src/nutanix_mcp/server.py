@@ -3,22 +3,25 @@
 import asyncio
 import contextlib
 import json
+import logging
 import sys
 from collections.abc import AsyncIterator
 from typing import Any
 
 from mcp.server import Server
+from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.stdio import stdio_server
 from mcp.types import (
+    CallToolResult,
     GetPromptResult,
     Prompt,
     Resource,
     ResourceTemplate,
     TextContent,
-    TextResourceContents,
     Tool,
 )
 
+from nutanix_mcp import __version__
 from nutanix_mcp.client import NutanixAPIError, NutanixClient
 from nutanix_mcp.config import Settings, get_settings
 from nutanix_mcp.prompts import PROMPT_HANDLERS, PROMPTS
@@ -38,6 +41,8 @@ from nutanix_mcp.tools.snapshot import SNAPSHOT_HANDLERS
 from nutanix_mcp.tools.task import TASK_HANDLERS
 from nutanix_mcp.tools.vm import VM_HANDLERS
 
+logger = logging.getLogger("nutanix_mcp")
+
 # Merge all handler dispatch tables
 ALL_HANDLERS: dict[str, Any] = {
     **VM_HANDLERS,
@@ -51,10 +56,72 @@ ALL_HANDLERS: dict[str, Any] = {
     **ASBUILT_HANDLERS,
 }
 
+SERVER_INSTRUCTIONS = """\
+This server manages Nutanix infrastructure through two API surfaces:
+
+- Prism Central tools (list_vms, get_cluster, list_alerts, ...) operate
+  fleet-wide through the central management plane.
+- Prism Element tools (pe_*) query a single cluster directly and take a
+  `pe_host` argument. Discover valid hosts with list_clusters, or pass a
+  cluster name/UUID to generate_asbuilt which resolves it automatically.
+
+Mutating operations (create/update/delete/power/clone) return a task UUID
+immediately; poll get_task to confirm completion before reporting success.
+delete_vm additionally requires confirm=true. Before risky changes,
+snapshot_vm provides a recovery point as a safety net.
+"""
+
+
+def _error_result(message: str) -> CallToolResult:
+    """Build a tool error result the client can detect via isError."""
+    return CallToolResult(
+        content=[TextContent(type="text", text=message)],
+        isError=True,
+    )
+
+
+def _describe_exception(e: Exception, settings: Settings) -> str:
+    """Translate SDK/transport exceptions into actionable error messages.
+
+    The Nutanix SDK raises per-namespace ApiException classes (duck-typed
+    via .status/.reason) and urllib3 connection errors whose raw text is
+    noisy; give the model something it can act on instead.
+    """
+    status = getattr(e, "status", None)
+    reason = getattr(e, "reason", None)
+    if status is not None:
+        if status in (401, 403):
+            return f"Nutanix API error: authentication failed (HTTP {status}). Check NUTANIX_USERNAME/NUTANIX_PASSWORD."
+        if status == 404:
+            return "Nutanix API error: resource not found (HTTP 404). Verify the UUID/extId."
+        if status == 412 or status == 409:
+            return f"Nutanix API error: concurrent modification conflict (HTTP {status}). Re-fetch the entity and retry."
+        return f"Nutanix API error (HTTP {status}): {reason or e}"
+    name = type(e).__name__
+    if "MaxRetryError" in name or "ConnectionError" in name or "NewConnectionError" in name:
+        return (
+            f"Cannot reach Prism Central at {settings.host}:{settings.port}. "
+            "Check NUTANIX_HOST, network connectivity, and that port 9440 is open."
+        )
+    return f"Unexpected error ({name}): {e}"
+
+
+def _jsonable(value: Any) -> Any:
+    """Coerce handler output into JSON-serializable structured content.
+
+    SDK model dumps can contain datetimes and other rich types that
+    json.dumps rejects; stringify anything non-standard.
+    """
+    return json.loads(json.dumps(value, default=str))
+
 
 def create_server(settings: Settings) -> tuple[Server, NutanixClient]:
     """Create and configure the MCP server."""
-    server = Server("nutanix-mcp")
+    server = Server(
+        "nutanix-mcp",
+        version=__version__,
+        instructions=SERVER_INSTRUCTIONS,
+    )
     client = NutanixClient(settings)
     all_tools = get_all_tools()
 
@@ -66,35 +133,33 @@ def create_server(settings: Settings) -> tuple[Server, NutanixClient]:
         return [
             Tool(
                 name=tool["name"],
+                title=tool["title"],
                 description=tool["description"],
                 inputSchema=tool["inputSchema"],
+                annotations=tool["annotations"],
             )
             for tool in all_tools
         ]
 
     @server.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
-        """Execute a tool and return the result."""
+    async def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any] | CallToolResult:
+        """Execute a tool and return structured content (or an error result)."""
         handler = ALL_HANDLERS.get(name)
         if not handler:
-            return [
-                TextContent(
-                    type="text",
-                    text=f"Error: Unknown tool '{name}'",
-                )
-            ]
+            return _error_result(f"Unknown tool '{name}'")
 
         try:
             result = await handler(client, arguments or {})
-            return [TextContent(type="text", text=json.dumps(result, indent=2))]
+            return _jsonable(result)
         except NutanixAPIError as e:
-            error_text = f"Error: {e.message}"
+            error_text = f"Nutanix API error: {e.message}"
             if e.status_code:
                 error_text += f" (HTTP {e.status_code})"
-            return [TextContent(type="text", text=error_text)]
+            logger.warning("Tool %s failed: %s", name, error_text)
+            return _error_result(error_text)
         except Exception as e:
-            error_type = type(e).__name__
-            return [TextContent(type="text", text=f"Error ({error_type}): {e}")]
+            logger.exception("Tool %s raised unexpected error", name)
+            return _error_result(_describe_exception(e, settings))
 
     # ─── Resources ────────────────────────────────────────────────────────
 
@@ -109,7 +174,7 @@ def create_server(settings: Settings) -> tuple[Server, NutanixClient]:
         return RESOURCE_TEMPLATES
 
     @server.read_resource()
-    async def read_resource(uri: str) -> list[TextResourceContents]:
+    async def read_resource(uri: str) -> list[ReadResourceContents]:
         """Resolve a nutanix:// URI to resource contents."""
         try:
             return await resolve_resource(client, str(uri))
@@ -117,11 +182,11 @@ def create_server(settings: Settings) -> tuple[Server, NutanixClient]:
             error_text = f"Error: {e.message}"
             if e.status_code:
                 error_text += f" (HTTP {e.status_code})"
+            logger.warning("Resource read %s failed: %s", uri, error_text)
             return [
-                TextResourceContents(
-                    uri=str(uri),
-                    mimeType="application/json",
-                    text=json.dumps({"error": error_text}),
+                ReadResourceContents(
+                    content=json.dumps({"error": error_text}),
+                    mime_type="application/json",
                 )
             ]
 
@@ -137,30 +202,31 @@ def create_server(settings: Settings) -> tuple[Server, NutanixClient]:
         """Handle a prompt request."""
         handler = PROMPT_HANDLERS.get(name)
         if not handler:
-            return GetPromptResult(
-                description="Unknown prompt",
-                messages=[],
-            )
+            raise ValueError(f"Unknown prompt: {name}")
         return handler(arguments or {})
 
     return server, client
 
 
+def _configure_logging(settings: Settings) -> None:
+    """Send logs to stderr (stdout is reserved for the stdio transport)."""
+    logging.basicConfig(
+        stream=sys.stderr,
+        level=getattr(logging, settings.log_level.upper(), logging.INFO),
+        format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    )
+
+
 async def run_stdio() -> None:
     """Run the MCP server over stdio transport."""
     settings = get_settings()
+    _configure_logging(settings)
 
     if not settings.has_credentials:
-        print(
-            "Error: No credentials configured. Set NUTANIX_USERNAME and NUTANIX_PASSWORD.",
-            file=sys.stderr,
-        )
+        logger.error("No credentials configured. Set NUTANIX_USERNAME and NUTANIX_PASSWORD.")
         sys.exit(1)
 
-    print(
-        f"Starting Nutanix MCP server (stdio) for {settings.host}:{settings.port}",
-        file=sys.stderr,
-    )
+    logger.info("Starting Nutanix MCP server (stdio) for %s:%s", settings.host, settings.port)
 
     server, client = create_server(settings)
 
@@ -183,12 +249,10 @@ def run_http(host: str = "0.0.0.0", port: int = 8000) -> None:
     from starlette.routing import Mount
 
     settings = get_settings()
+    _configure_logging(settings)
 
     if not settings.has_credentials:
-        print(
-            "Error: No credentials configured. Set NUTANIX_USERNAME and NUTANIX_PASSWORD.",
-            file=sys.stderr,
-        )
+        logger.error("No credentials configured. Set NUTANIX_USERNAME and NUTANIX_PASSWORD.")
         sys.exit(1)
 
     server, client = create_server(settings)
@@ -205,10 +269,7 @@ def run_http(host: str = "0.0.0.0", port: int = 8000) -> None:
         routes=[Mount("/mcp", app=session_manager.handle_request)],
     )
 
-    print(
-        f"Starting Nutanix MCP server (HTTP) at http://{host}:{port}/mcp",
-        file=sys.stderr,
-    )
+    logger.info("Starting Nutanix MCP server (HTTP) at http://%s:%s/mcp", host, port)
     uvicorn.run(app, host=host, port=port)
 
 

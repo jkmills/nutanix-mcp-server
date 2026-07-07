@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-07-07
+
+### Fixed
+
+- **Resource reads crashed**: `resources/read` returned `TextResourceContents`
+  where the MCP SDK expects `ReadResourceContents`, so every `nutanix://` URI
+  read raised `AttributeError`. All resource reads now work.
+- **Missing If-Match on v4 mutations**: `power_on_vm`, `power_off_vm`,
+  `update_vm`, `delete_vm`, and `clone_vm` never sent the ETag required by
+  Nutanix v4 APIs (HTTP 428 Precondition Required). Each handler now fetches
+  the entity and passes `if_match` from `ApiClient.get_etag()`.
+- **ETag source for httpx paths**: `acknowledge_alert`, `assign_category`, and
+  `remove_category` read the ETag only from body `$metadata`; the authoritative
+  HTTP response header is now used first with body fallback
+  (new `NutanixClient.v4_get_with_etag`).
+- **Tool errors were invisible to clients**: failures were returned as plain
+  text without `isError`, so MCP clients treated errors as successful results.
+  Errors now return proper `CallToolResult(isError=True)`.
+- **Non-JSON-serializable tool output**: handlers returning SDK datetimes
+  (e.g. `get_task`) crashed serialization; output is now sanitized centrally.
+- License classifier corrected to AGPLv3+ (was MIT, contradicting the license).
+
+### Added
+
+- **Tool annotations on all 65 tools** — `readOnlyHint`, `destructiveHint`,
+  `idempotentHint`, `openWorldHint`, and human-readable titles, so MCP clients
+  can gate destructive operations (`delete_vm`, `power_off_vm`, `update_vm`,
+  `restore_vm_snapshot`) and fast-track read-only ones.
+- **Structured tool output** — tool results are returned as
+  `structuredContent` with a JSON text fallback for older clients.
+- **Server metadata** — the initialize response now advertises the server
+  version and usage `instructions` (PC vs PE tool split, task polling,
+  snapshot-before-mutation guidance).
+- **Friendly error mapping** — SDK/transport failures (auth, 404, ETag
+  conflict, unreachable host) are translated into actionable messages.
+- `NUTANIX_LOG_LEVEL` env var; diagnostics go through `logging` to stderr.
+- Pagination safety cap in `list_all` (200 pages / 20k entities).
+- End-to-end coverage: tool registry metadata tests, server plumbing tests
+  (structured output, isError, resource contract).
+
+### Changed
+
+- Password is stored as a Pydantic `SecretStr` (masked in repr/logs).
+- `mcp` dependency floor raised to 1.10 (annotations + structured content).
+- `v4_get`/`v4_put` refactored onto a shared retrying `_v4_request` helper.
+- `list_vm_snapshots` description no longer claims auto-pagination.
+
 ## [0.3.0] - 2026-05-07
 
 ### Added

@@ -96,12 +96,14 @@ async def handle_assign_category(client: NutanixClient, arguments: dict[str, Any
     category_value = arguments["category_value"]
 
     # Get current VM to preserve existing categories and obtain ETag
-    current = await client.v4_get(
+    # (header is authoritative; body metadata is a fallback)
+    current, etag = await client.v4_get_with_etag(
         namespace="vmm",
         path=f"ahv/config/vms/{vm_uuid}",
     )
     vm_data = current.get("data", {})
-    etag = vm_data.get("$metadata", {}).get("ETag")
+    if not etag:
+        etag = vm_data.get("$metadata", {}).get("ETag")
 
     # Get existing categories and add new one (avoid duplicates)
     categories = vm_data.get("categories", [])
@@ -150,13 +152,14 @@ async def handle_remove_category(client: NutanixClient, arguments: dict[str, Any
     category_key = arguments["category_key"]
     category_value = arguments["category_value"]
 
-    # Get current VM state
-    current = await client.v4_get(
+    # Get current VM state and ETag (header is authoritative; body metadata is a fallback)
+    current, etag = await client.v4_get_with_etag(
         namespace="vmm",
         path=f"ahv/config/vms/{vm_uuid}",
     )
     vm_data = current.get("data", {})
-    etag = vm_data.get("$metadata", {}).get("ETag")
+    if not etag:
+        etag = vm_data.get("$metadata", {}).get("ETag")
 
     categories = vm_data.get("categories", [])
     original_count = len(categories)

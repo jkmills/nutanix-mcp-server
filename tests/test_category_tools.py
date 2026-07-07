@@ -20,14 +20,16 @@ def mock_client():
 @pytest.mark.asyncio
 async def test_assign_category(mock_client):
     """Test assigning a category to a VM."""
-    mock_client.v4_get.return_value = {
-        "data": {
-            "extId": "vm-uuid-1",
-            "name": "web-01",
-            "categories": [{"key": "AppType", "value": "Web"}],
-            "$metadata": {"ETag": "etag-1"},
-        }
-    }
+    mock_client.v4_get_with_etag.return_value = (
+        {
+            "data": {
+                "extId": "vm-uuid-1",
+                "name": "web-01",
+                "categories": [{"key": "AppType", "value": "Web"}],
+            }
+        },
+        "etag-1",
+    )
     mock_client.v4_put.return_value = {"data": {"extId": "vm-uuid-1"}}
 
     result = await handle_assign_category(
@@ -48,18 +50,21 @@ async def test_assign_category(mock_client):
     assert len(put_body["categories"]) == 2
     assert {"key": "Environment", "value": "Production"} in put_body["categories"]
     assert {"key": "AppType", "value": "Web"} in put_body["categories"]
+    assert mock_client.v4_put.call_args.kwargs["headers"]["If-Match"] == "etag-1"
 
 
 @pytest.mark.asyncio
 async def test_assign_category_already_exists(mock_client):
     """Test assigning a category that's already assigned."""
-    mock_client.v4_get.return_value = {
-        "data": {
-            "extId": "vm-uuid-1",
-            "categories": [{"key": "Environment", "value": "Production"}],
-            "$metadata": {"ETag": "etag-1"},
-        }
-    }
+    mock_client.v4_get_with_etag.return_value = (
+        {
+            "data": {
+                "extId": "vm-uuid-1",
+                "categories": [{"key": "Environment", "value": "Production"}],
+            }
+        },
+        "etag-1",
+    )
 
     result = await handle_assign_category(
         mock_client,
@@ -77,16 +82,18 @@ async def test_assign_category_already_exists(mock_client):
 @pytest.mark.asyncio
 async def test_remove_category(mock_client):
     """Test removing a category from a VM."""
-    mock_client.v4_get.return_value = {
-        "data": {
-            "extId": "vm-uuid-1",
-            "categories": [
-                {"key": "Environment", "value": "Production"},
-                {"key": "AppType", "value": "Web"},
-            ],
-            "$metadata": {"ETag": "etag-2"},
-        }
-    }
+    mock_client.v4_get_with_etag.return_value = (
+        {
+            "data": {
+                "extId": "vm-uuid-1",
+                "categories": [
+                    {"key": "Environment", "value": "Production"},
+                    {"key": "AppType", "value": "Web"},
+                ],
+            }
+        },
+        "etag-2",
+    )
     mock_client.v4_put.return_value = {"data": {"extId": "vm-uuid-1"}}
 
     result = await handle_remove_category(
@@ -109,13 +116,15 @@ async def test_remove_category(mock_client):
 @pytest.mark.asyncio
 async def test_remove_category_not_found(mock_client):
     """Test removing a category that isn't assigned."""
-    mock_client.v4_get.return_value = {
-        "data": {
-            "extId": "vm-uuid-1",
-            "categories": [{"key": "AppType", "value": "Web"}],
-            "$metadata": {"ETag": "etag-3"},
-        }
-    }
+    mock_client.v4_get_with_etag.return_value = (
+        {
+            "data": {
+                "extId": "vm-uuid-1",
+                "categories": [{"key": "AppType", "value": "Web"}],
+            }
+        },
+        "etag-3",
+    )
 
     result = await handle_remove_category(
         mock_client,
