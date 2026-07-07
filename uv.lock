@@ -620,7 +620,7 @@ wheels = [
 
 [[package]]
 name = "nutanix-mcp-server"
-version = "0.3.0"
+version = "0.4.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -648,7 +648,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27.0,<1.0" },
-    { name = "mcp", specifier = ">=1.2.0,<2.0" },
+    { name = "mcp", specifier = ">=1.10.0,<2.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10.0" },
     { name = "ntnx-clustermgmt-py-client", specifier = ">=4.0.0,<4.2" },
     { name = "ntnx-dataprotection-py-client", specifier = ">=4.0.0,<4.2" },

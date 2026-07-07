@@ -100,13 +100,11 @@ async def test_get_alert(mock_client):
 
 @pytest.mark.asyncio
 async def test_acknowledge_alert(mock_client):
-    """Test acknowledging an alert."""
-    mock_client.v4_get.return_value = {
-        "data": {
-            "extId": "alert-uuid-123",
-            "$metadata": {"ETag": "etag-value-1"},
-        }
-    }
+    """Test acknowledging an alert (ETag from response header)."""
+    mock_client.v4_get_with_etag.return_value = (
+        {"data": {"extId": "alert-uuid-123"}},
+        "etag-value-1",
+    )
     mock_client.v4_put.return_value = {"data": {"extId": "alert-uuid-123"}}
 
     result = await handle_acknowledge_alert(
@@ -128,13 +126,16 @@ async def test_acknowledge_alert(mock_client):
 
 @pytest.mark.asyncio
 async def test_resolve_alert(mock_client):
-    """Test resolving an alert."""
-    mock_client.v4_get.return_value = {
-        "data": {
-            "extId": "alert-uuid-456",
-            "$metadata": {"ETag": "etag-2"},
-        }
-    }
+    """Test resolving an alert (ETag falls back to body $metadata when header absent)."""
+    mock_client.v4_get_with_etag.return_value = (
+        {
+            "data": {
+                "extId": "alert-uuid-456",
+                "$metadata": {"ETag": "etag-2"},
+            }
+        },
+        None,
+    )
     mock_client.v4_put.return_value = {"data": {"extId": "alert-uuid-456"}}
 
     result = await handle_acknowledge_alert(
@@ -148,3 +149,4 @@ async def test_resolve_alert(mock_client):
     assert result["status"] == "alert_resolved"
     put_call = mock_client.v4_put.call_args
     assert put_call.kwargs["body"] == {"isResolved": True}
+    assert put_call.kwargs["headers"]["If-Match"] == "etag-2"

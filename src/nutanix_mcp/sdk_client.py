@@ -8,26 +8,22 @@ import asyncio
 from functools import cached_property
 from typing import Any, Optional
 
-from ntnx_vmm_py_client import ApiClient as VmmApiClient
-from ntnx_vmm_py_client import Configuration as VmmConfiguration
-from ntnx_vmm_py_client.api import ImagesApi, VmApi
-
 from ntnx_clustermgmt_py_client import ApiClient as ClustermgmtApiClient
 from ntnx_clustermgmt_py_client import Configuration as ClustermgmtConfiguration
 from ntnx_clustermgmt_py_client.api import ClustersApi, StorageContainersApi
-
+from ntnx_dataprotection_py_client import ApiClient as DataprotectionApiClient
+from ntnx_dataprotection_py_client import Configuration as DataprotectionConfiguration
+from ntnx_dataprotection_py_client.api import RecoveryPointsApi
 from ntnx_networking_py_client import ApiClient as NetworkingApiClient
 from ntnx_networking_py_client import Configuration as NetworkingConfiguration
 from ntnx_networking_py_client.api import SubnetsApi
-
 from ntnx_prism_py_client import ApiClient as PrismApiClient
 from ntnx_prism_py_client import Configuration as PrismConfiguration
 from ntnx_prism_py_client.api import CategoriesApi
 from ntnx_prism_py_client.api import TasksApi as PrismTasksApi
-
-from ntnx_dataprotection_py_client import ApiClient as DataprotectionApiClient
-from ntnx_dataprotection_py_client import Configuration as DataprotectionConfiguration
-from ntnx_dataprotection_py_client.api import RecoveryPointsApi
+from ntnx_vmm_py_client import ApiClient as VmmApiClient
+from ntnx_vmm_py_client import Configuration as VmmConfiguration
+from ntnx_vmm_py_client.api import ImagesApi, VmApi
 
 from nutanix_mcp.config import Settings
 
@@ -69,7 +65,7 @@ class NutanixSDKClient:
         config.host = self.settings.host
         config.port = str(self.settings.port)
         config.username = self.settings.username
-        config.password = self.settings.password
+        config.password = self.settings.password.get_secret_value() if self.settings.password else None
         config.verify_ssl = self.settings.verify_ssl
         config.max_retry_attempts = 3
         config.backoff_factor = 2
@@ -146,6 +142,16 @@ class NutanixSDKClient:
 
     # ─── Async helpers ────────────────────────────────────────────────────
 
+    @staticmethod
+    def get_etag(api_response: Any) -> Optional[str]:
+        """Extract the ETag from a GET response for If-Match concurrency control.
+
+        Nutanix v4 APIs require the If-Match header on mutating operations
+        (PUT, DELETE, and POST $actions); without it the API rejects the
+        request with HTTP 428 Precondition Required.
+        """
+        return VmmApiClient.get_etag(api_response)
+
     async def call(self, func: Any, *args: Any, **kwargs: Any) -> Any:
         """Run a synchronous SDK method in a thread to avoid blocking.
 
@@ -153,6 +159,10 @@ class NutanixSDKClient:
             result = await sdk.call(sdk.vm_api.list_vms, _filter="name eq 'test'")
         """
         return await asyncio.to_thread(func, *args, **kwargs)
+
+    # Auto-pagination safety valve: 200 pages × 100 items = 20k entities max.
+    # Prevents unbounded loops if a server keeps returning full pages.
+    MAX_PAGES = 200
 
     async def list_all(self, list_func: Any, *args: Any, **kwargs: Any) -> list[Any]:
         """Auto-paginate a list endpoint that supports _page/_limit.
@@ -168,7 +178,7 @@ class NutanixSDKClient:
         page_size = 100
         all_data: list[Any] = []
 
-        while True:
+        while page < self.MAX_PAGES:
             response = await asyncio.to_thread(
                 list_func, *args, _page=page, _limit=page_size, **kwargs
             )

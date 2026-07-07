@@ -3,7 +3,8 @@
 import json
 from typing import Any
 
-from mcp.types import Resource, ResourceTemplate, TextResourceContents
+from mcp.server.lowlevel.helper_types import ReadResourceContents
+from mcp.types import Resource, ResourceTemplate
 
 from nutanix_mcp.client import NutanixClient
 
@@ -87,7 +88,7 @@ STATIC_RESOURCES: list[Resource] = [
 # ─── Resource Handlers ────────────────────────────────────────────────────────
 
 
-async def resolve_resource(client: NutanixClient, uri: str) -> list[TextResourceContents]:
+async def resolve_resource(client: NutanixClient, uri: str) -> list[ReadResourceContents]:
     """Resolve a nutanix:// URI to resource contents."""
     parts = uri.replace("nutanix://", "").strip("/").split("/")
     resource_type = parts[0] if parts else ""
@@ -96,10 +97,9 @@ async def resolve_resource(client: NutanixClient, uri: str) -> list[TextResource
     # Static text resources
     if resource_type == "asbuilt" and resource_id == "project":
         return [
-            TextResourceContents(
-                uri=uri,
-                mimeType="text/markdown",
-                text=_project_architecture_doc(),
+            ReadResourceContents(
+                content=_project_architecture_doc(),
+                mime_type="text/markdown",
             )
         ]
 
@@ -146,10 +146,9 @@ async def resolve_resource(client: NutanixClient, uri: str) -> list[TextResource
         data = {"error": f"Unknown resource type: {resource_type}"}
 
     return [
-        TextResourceContents(
-            uri=uri,
-            mimeType="application/json",
-            text=json.dumps(data, indent=2, default=str),
+        ReadResourceContents(
+            content=json.dumps(data, indent=2, default=str),
+            mime_type="application/json",
         )
     ]
 
@@ -177,7 +176,7 @@ graph TD
     AI["AI Assistant<br/>(Claude, GPT, etc.)"]
     MCP["MCP Protocol<br/>(stdio / HTTP)"]
     SERVER["nutanix_mcp.server<br/>MCP Server"]
-    TOOLS["Tool Registry<br/>64 tools"]
+    TOOLS["Tool Registry<br/>{len(tools)} tools"]
     SDK["NutanixSDKClient<br/>v4 SDK wrapper"]
     HTTPX["NutanixClient<br/>httpx async HTTP"]
     PC["Prism Central<br/>v4 API"]

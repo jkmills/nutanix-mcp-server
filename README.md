@@ -10,9 +10,12 @@ An MCP (Model Context Protocol) server that exposes Nutanix Prism Central and Pr
 - **65 tools** — Full coverage of Prism Central v4 and Prism Element v2 APIs
 - **Prism Central (v4 API)** — VM lifecycle, snapshots, clusters, hosts, networking, categories, alerts, tasks
 - **Prism Element (v2 API)** — Direct cluster access for storage, disks, data protection, system config, health checks
+- **Tool annotations** — Every tool carries MCP `readOnlyHint`/`destructiveHint`/`idempotentHint` metadata, so clients can require approval for destructive operations (`delete_vm`, `power_off_vm`, …) and fast-track read-only ones
+- **Structured output** — Results are returned as MCP `structuredContent` with a JSON text fallback; failures return proper `isError` results with actionable messages
+- **ETag concurrency control** — All v4 mutations send `If-Match` automatically, as required by Nutanix v4 APIs
 - **AsBuilt Reports** — Generate comprehensive HTML reports with interactive TOC, Mermaid topology diagrams, and print-to-PDF support
 - **API version routing** — Prefers v4, falls back to v3/v2 when needed
-- **Async** — Non-blocking HTTP client using httpx
+- **Async** — Non-blocking HTTP client using httpx; official Nutanix SDK calls run off the event loop
 
 ## Available Tools (65)
 
@@ -187,6 +190,12 @@ NUTANIX_USERNAME=your-username
 NUTANIX_PASSWORD=your-password
 NUTANIX_VERIFY_SSL=true
 NUTANIX_TIMEOUT=30
+
+# Optional: restrict which Prism Element hosts may receive credentials
+# NUTANIX_ALLOWED_PE_HOSTS=10.0.0.1,10.0.0.2
+
+# Optional: stderr diagnostic verbosity (DEBUG, INFO, WARNING, ERROR)
+# NUTANIX_LOG_LEVEL=INFO
 ```
 
 ### Run

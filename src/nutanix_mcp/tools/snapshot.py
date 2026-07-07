@@ -36,8 +36,8 @@ SNAPSHOT_TOOLS: list[dict] = [
     {
         "name": "list_vm_snapshots",
         "description": (
-            "List ALL recovery points (snapshots) for a specific VM (auto-paginates internally). "
-            "Returns complete results in one call — no manual pagination needed."
+            "List recovery points (snapshots) for a specific VM. "
+            "Returns up to 'limit' most relevant results (default: 20)."
         ),
         "inputSchema": {
             "type": "object",

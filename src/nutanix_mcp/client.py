@@ -92,6 +92,47 @@ class NutanixClient:
 
     # ─── v4 API methods ───────────────────────────────────────────────────
 
+    async def _v4_request(
+        self,
+        method: str,
+        namespace: str,
+        path: str,
+        params: Optional[dict[str, str]] = None,
+        body: Optional[dict[str, Any]] = None,
+        headers: Optional[dict[str, str]] = None,
+    ) -> httpx.Response:
+        """Send a v4 API request with connection error mapping and 429 retry."""
+        client = await self._get_client()
+        url = f"/{namespace}/{self.V4_VERSION}/{path}"
+
+        for attempt in range(self.MAX_RETRIES + 1):
+            try:
+                response = await client.request(method, url, params=params, json=body, headers=headers)
+            except httpx.ConnectError as e:
+                raise NutanixAPIError(
+                    f"Connection failed to {self.settings.host}:{self.settings.port}",
+                    details=str(e),
+                )
+            except httpx.TimeoutException as e:
+                raise NutanixAPIError(
+                    f"Request timed out after {self.settings.timeout}s",
+                    details=str(e),
+                )
+
+            if response.status_code == 429 and attempt < self.MAX_RETRIES:
+                wait = self.RETRY_BACKOFF_BASE * (2**attempt)
+                await asyncio.sleep(wait)
+                continue
+
+            if response.status_code >= 400:
+                self._handle_error(response)
+
+            return response
+
+        # Retries exhausted on 429
+        self._handle_error(response)
+        raise NutanixAPIError("Rate limited: retries exhausted", status_code=429)  # unreachable
+
     async def v4_get(
         self,
         namespace: str,
@@ -105,36 +146,22 @@ class NutanixClient:
             path: Resource path (e.g., 'ahv/config/vms')
             params: Optional OData query parameters
         """
-        client = await self._get_client()
-        url = f"/{namespace}/{self.V4_VERSION}/{path}"
+        response = await self._v4_request("GET", namespace, path, params=params)
+        return response.json()
 
-        for attempt in range(self.MAX_RETRIES + 1):
-            try:
-                response = await client.get(url, params=params)
-            except httpx.ConnectError as e:
-                raise NutanixAPIError(
-                    f"Connection failed to {self.settings.host}:{self.settings.port}",
-                    details=str(e),
-                )
-            except httpx.TimeoutException as e:
-                raise NutanixAPIError(
-                    f"Request timed out after {self.settings.timeout}s",
-                    details=str(e),
-                )
+    async def v4_get_with_etag(
+        self,
+        namespace: str,
+        path: str,
+        params: Optional[dict[str, str]] = None,
+    ) -> tuple[dict[str, Any], Optional[str]]:
+        """GET request against v4 API, returning (body, ETag header).
 
-            if response.status_code == 429 and attempt < self.MAX_RETRIES:
-                wait = self.RETRY_BACKOFF_BASE * (2**attempt)
-                await asyncio.sleep(wait)
-                continue
-
-            if response.status_code >= 400:
-                self._handle_error(response)
-
-            return response.json()
-
-        # Should not reach here, but safety net
-        self._handle_error(response)
-        return {}  # unreachable
+        The ETag must be echoed back as If-Match on subsequent mutating
+        requests — Nutanix v4 rejects PUT/DELETE without it (HTTP 428).
+        """
+        response = await self._v4_request("GET", namespace, path, params=params)
+        return response.json(), response.headers.get("ETag")
 
     async def v4_put(
         self,
@@ -144,35 +171,8 @@ class NutanixClient:
         headers: Optional[dict[str, str]] = None,
     ) -> dict[str, Any]:
         """PUT request against v4 API (used for updates with ETag)."""
-        client = await self._get_client()
-        url = f"/{namespace}/{self.V4_VERSION}/{path}"
-
-        for attempt in range(self.MAX_RETRIES + 1):
-            try:
-                response = await client.put(url, json=body, headers=headers)
-            except httpx.ConnectError as e:
-                raise NutanixAPIError(
-                    f"Connection failed to {self.settings.host}:{self.settings.port}",
-                    details=str(e),
-                )
-            except httpx.TimeoutException as e:
-                raise NutanixAPIError(
-                    f"Request timed out after {self.settings.timeout}s",
-                    details=str(e),
-                )
-
-            if response.status_code == 429 and attempt < self.MAX_RETRIES:
-                wait = self.RETRY_BACKOFF_BASE * (2**attempt)
-                await asyncio.sleep(wait)
-                continue
-
-            if response.status_code >= 400:
-                self._handle_error(response)
-
-            return response.json()
-
-        self._handle_error(response)
-        return {}  # unreachable
+        response = await self._v4_request("PUT", namespace, path, body=body, headers=headers)
+        return response.json()
 
     # Maximum allowed length for OData filter/orderby expressions
     MAX_FILTER_LENGTH = 500

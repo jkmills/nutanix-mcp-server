@@ -4,7 +4,7 @@ import base64
 import sys
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,9 +27,16 @@ class Settings(BaseSettings):
     )
     port: int = Field(default=9440, description="Prism Central API port")
     username: Optional[str] = Field(default=None, description="Username for basic auth")
-    password: Optional[str] = Field(default=None, description="Password for basic auth")
+    password: Optional[SecretStr] = Field(
+        default=None,
+        description="Password for basic auth (SecretStr — masked in repr/logs)",
+    )
     verify_ssl: bool = Field(default=True, description="Verify SSL certificates")
     timeout: int = Field(default=30, description="Request timeout in seconds")
+    log_level: str = Field(
+        default="INFO",
+        description="Log level for stderr diagnostics (DEBUG, INFO, WARNING, ERROR)",
+    )
 
     # Security: restrict which PE hosts can be targeted
     allowed_pe_hosts: list[str] = Field(
@@ -68,7 +75,8 @@ class Settings(BaseSettings):
     def get_auth_header(self) -> dict[str, str]:
         """Build the authorization header."""
         if self.username and self.password:
-            credentials = base64.b64encode(f"{self.username}:{self.password}".encode()).decode()
+            secret = self.password.get_secret_value()
+            credentials = base64.b64encode(f"{self.username}:{secret}".encode()).decode()
             return {"Authorization": f"Basic {credentials}"}
         raise ValueError("No credentials configured. Set NUTANIX_USERNAME and NUTANIX_PASSWORD.")
 

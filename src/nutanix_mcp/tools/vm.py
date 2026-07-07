@@ -198,6 +198,12 @@ VM_TOOLS: list[dict] = [
 # ─── Tool Handlers ────────────────────────────────────────────────────────────
 
 
+async def _fetch_vm_etag(sdk: Any, vm_uuid: str) -> tuple[Any, Any]:
+    """Fetch current VM state and its ETag (required as If-Match on v4 mutations)."""
+    response = await sdk.call(sdk.vm_api.get_vm_by_id, vm_uuid)
+    return response, sdk.get_etag(response)
+
+
 async def handle_list_vms(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """List VMs using official Nutanix SDK. Handles pagination automatically."""
     filter_expr = arguments.get("filter")
@@ -268,7 +274,8 @@ async def handle_power_on_vm(client: NutanixClient, arguments: dict[str, Any]) -
     """Power on a VM using official Nutanix SDK."""
     vm_uuid = arguments["vm_uuid"]
     sdk = client.sdk
-    response = await sdk.call(sdk.vm_api.power_on_vm, vm_uuid)
+    _, etag = await _fetch_vm_etag(sdk, vm_uuid)
+    response = await sdk.call(sdk.vm_api.power_on_vm, vm_uuid, if_match=etag)
     task_id = response.data.ext_id if response.data else None
     return {"status": "power_on_initiated", "taskExtId": task_id}
 
@@ -278,14 +285,15 @@ async def handle_power_off_vm(client: NutanixClient, arguments: dict[str, Any]) 
     vm_uuid = arguments["vm_uuid"]
     force = arguments.get("force", False)
     sdk = client.sdk
+    _, etag = await _fetch_vm_etag(sdk, vm_uuid)
 
     if force:
-        response = await sdk.call(sdk.vm_api.power_off_vm, vm_uuid)
+        response = await sdk.call(sdk.vm_api.power_off_vm, vm_uuid, if_match=etag)
         action = "power-off"
     else:
         import ntnx_vmm_py_client.models.vmm.v4.ahv.config.GuestPowerOptions as gpo
         body = gpo.GuestPowerOptions()
-        response = await sdk.call(sdk.vm_api.shutdown_guest_vm, vm_uuid, body)
+        response = await sdk.call(sdk.vm_api.shutdown_guest_vm, vm_uuid, body, if_match=etag)
         action = "guest-shutdown"
 
     task_id = response.data.ext_id if response.data else None
@@ -294,8 +302,8 @@ async def handle_power_off_vm(client: NutanixClient, arguments: dict[str, Any]) 
 
 async def handle_create_vm(client: NutanixClient, arguments: dict[str, Any]) -> dict[str, Any]:
     """Create a VM using official Nutanix SDK."""
-    import ntnx_vmm_py_client.models.vmm.v4.ahv.config.Vm as VmModule
     import ntnx_vmm_py_client.models.vmm.v4.ahv.config.Disk as DiskModule
+    import ntnx_vmm_py_client.models.vmm.v4.ahv.config.Vm as VmModule
 
     name = arguments["name"]
     cluster_uuid = arguments["cluster_uuid"]
@@ -331,8 +339,8 @@ async def handle_update_vm(client: NutanixClient, arguments: dict[str, Any]) -> 
     vm_uuid = arguments["vm_uuid"]
     sdk = client.sdk
 
-    # Fetch current VM state (SDK handles ETag via If-Match internally)
-    get_response = await sdk.call(sdk.vm_api.get_vm_by_id, vm_uuid)
+    # Fetch current VM state and its ETag for If-Match concurrency control
+    get_response, etag = await _fetch_vm_etag(sdk, vm_uuid)
     vm = get_response.data
 
     # Apply requested changes
@@ -346,7 +354,7 @@ async def handle_update_vm(client: NutanixClient, arguments: dict[str, Any]) -> 
     if "memory_mb" in arguments:
         vm.memory_size_bytes = arguments["memory_mb"] * 1024 * 1024
 
-    response = await sdk.call(sdk.vm_api.update_vm_by_id, vm_uuid, vm)
+    response = await sdk.call(sdk.vm_api.update_vm_by_id, vm_uuid, vm, if_match=etag)
     task_id = response.data.ext_id if response.data else None
     return {
         "status": "vm_update_initiated",
@@ -366,7 +374,8 @@ async def handle_delete_vm(client: NutanixClient, arguments: dict[str, Any]) -> 
         }
 
     sdk = client.sdk
-    response = await sdk.call(sdk.vm_api.delete_vm_by_id, vm_uuid)
+    _, etag = await _fetch_vm_etag(sdk, vm_uuid)
+    response = await sdk.call(sdk.vm_api.delete_vm_by_id, vm_uuid, if_match=etag)
     task_id = response.data.ext_id if response.data else None
     return {
         "status": "vm_deletion_initiated",
@@ -385,7 +394,8 @@ async def handle_clone_vm(client: NutanixClient, arguments: dict[str, Any]) -> d
     body.name = new_name
 
     sdk = client.sdk
-    response = await sdk.call(sdk.vm_api.clone_vm, vm_uuid, body)
+    _, etag = await _fetch_vm_etag(sdk, vm_uuid)
+    response = await sdk.call(sdk.vm_api.clone_vm, vm_uuid, body, if_match=etag)
     task_id = response.data.ext_id if response.data else None
     return {
         "status": "vm_clone_initiated",

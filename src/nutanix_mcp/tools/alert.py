@@ -195,12 +195,13 @@ async def handle_acknowledge_alert(client: NutanixClient, arguments: dict[str, A
     else:
         body = {"isAcknowledged": True}
 
-    # Get current alert for ETag
-    current = await client.v4_get(
+    # Get current alert for ETag (header is authoritative; body metadata is a fallback)
+    current, etag = await client.v4_get_with_etag(
         namespace="prism",
         path=f"config/alerts/{alert_uuid}",
     )
-    etag = current.get("data", {}).get("$metadata", {}).get("ETag")
+    if not etag:
+        etag = current.get("data", {}).get("$metadata", {}).get("ETag")
 
     headers = {}
     if etag:

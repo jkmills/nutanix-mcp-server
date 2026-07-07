@@ -1,6 +1,6 @@
 [project]
 name = "nutanix-mcp-server"
-version = "0.3.0"
+version = "0.4.0"
 description = "MCP server for Nutanix Prism Central & Prism Element APIs"
 readme = "README.md"
 license = { text = "AGPL-3.0-or-later" }
@@ -10,7 +10,7 @@ keywords = ["mcp", "nutanix", "prism-central", "prism-element", "ai", "llm"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "mcp>=1.2.0,<2.0",
+    "mcp>=1.10.0,<2.0",
     "httpx>=0.27.0,<1.0",
     "pydantic>=2.0.0,<3.0",
     "pydantic-settings>=2.0.0,<3.0",
